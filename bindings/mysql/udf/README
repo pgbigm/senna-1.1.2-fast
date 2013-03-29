@@ -1,0 +1,42 @@
+** snippet UDF
+
+You can get snippet(or KWIC, KeyWords In Context) with a snippet UDF function.
+
+*** Install snippet UDF
+
+ > cd {senna-package}/bindings/mysql/udf/
+If you get Senna from Subversion repository, you have to execute autogen.sh.
+ > ./autogen.sh
+configure
+ > ./configure
+make
+ > make
+install
+ > sudo make install
+Load udf functions in MySQL.
+ > make load
+(In 'make load', 'mysql -u root -p' command is used for regist UDF.So password input is required.)
+
+*** Using snippet UDF
+
+snippet UDF is a function which have many parameters.
+
+ SELECT snippet(text or column, byte length of one snippet, number of snippets, encoding of text, 
+   html encoding or not, snippet open tag, snippet close tag,
+   word1, word1 open tag, word1 close tag,
+   word2, word2 open tag, word2 close tag, ...)
+
+Encoding of text is 'sjis', 'ujis', 'utf8' or 'default'.
+If you get html encoded text, you have to specify html encoding parameter as 1. If not, 0.
+
+ex.)
+
+ SELECT snippet(body, 120, 3, 'utf8', 
+   1, '...', '...<br>\n', 
+   'search', '<span class="word1">', '</span>', 
+   'test', '<span class="word2">', '</span>'
+ )
+ FROM contents
+ WHERE MATCH(body) AGAINST('*D+ search test' IN BOOLEAN MODE)
+ LIMIT 0,10;
+

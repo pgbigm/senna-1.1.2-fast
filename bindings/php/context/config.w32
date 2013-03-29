@@ -1,0 +1,9 @@
+// $ Id: $
+// vim:ft=javascript
+
+ARG_WITH('sen_ctx', 'senna binding for PHP.', 'no');
+
+if (PHP_SEN_CTX == "yes") {
+  EXTENSION("sen_ctx", "sen_ctx.c");
+  AC_DEFINE("HAVE_SEN_CTX", 1, "sen_ctx support");
+}

@@ -1,0 +1,689 @@
+diff -Ndur ../mysql-5.1.15-beta.senna/include/my_pthread.h ./include/my_pthread.h
+--- ../mysql-5.1.15-beta.senna/include/my_pthread.h	2007-01-30 17:34:03.000000000 +0900
++++ ./include/my_pthread.h	2007-02-26 23:22:42.000000000 +0900
+@@ -680,6 +680,9 @@
+   gptr dbug;
+   char name[THREAD_NAME_SIZE+1];
+ #endif
++#ifdef ENABLE_SENNA
++  int sen_flags;
++#endif /* ENABLE_SENNA */
+ };
+ 
+ extern struct st_my_thread_var *_my_thread_var(void) __attribute__ ((const));
+diff -Ndur ../mysql-5.1.15-beta.senna/libmysqld/filesort.cc ./libmysqld/filesort.cc
+--- ../mysql-5.1.15-beta.senna/libmysqld/filesort.cc	2007-01-30 17:34:12.000000000 +0900
++++ ./libmysqld/filesort.cc	2007-02-26 23:22:42.000000000 +0900
+@@ -1365,6 +1365,9 @@
+       }
+       if (sortorder->field->maybe_null())
+ 	length++;				// Place for NULL marker
++#ifdef ENABLE_SENNA
++      my_thread_var->sen_flags |= 2;
++#endif /* ENABLE_SENNA */
+     }
+     else
+     {
+diff -Ndur ../mysql-5.1.15-beta.senna/libmysqld/item_cmpfunc.cc ./libmysqld/item_cmpfunc.cc
+--- ../mysql-5.1.15-beta.senna/libmysqld/item_cmpfunc.cc	2007-01-30 17:34:26.000000000 +0900
++++ ./libmysqld/item_cmpfunc.cc	2007-02-26 23:22:42.000000000 +0900
+@@ -2402,6 +2402,22 @@
+   return 0;
+ }
+ 
++#ifdef ENABLE_SENNA
++bool 
++Item_cond::needs_record()
++{
++  List_iterator_fast<Item> li(list);
++  Item *item;
++  while ((item=li++))
++  {
++    if (item->needs_record())
++    {
++      return true;
++    }
++  }
++  return false;
++}
++#endif /* ENABLE_SENNA */
+ 
+ /*
+   Perform context analysis of an IN item tree
+diff -Ndur ../mysql-5.1.15-beta.senna/libmysqld/item_func.cc ./libmysqld/item_func.cc
+--- ../mysql-5.1.15-beta.senna/libmysqld/item_func.cc	2007-01-30 17:34:37.000000000 +0900
++++ ./libmysqld/item_func.cc	2007-02-26 23:22:42.000000000 +0900
+@@ -4714,7 +4714,11 @@
+   for (keynr=0 ; keynr < table->s->keys ; keynr++)
+   {
+     if ((table->key_info[keynr].flags & HA_FULLTEXT) &&
+-        (table->keys_in_use_for_query.is_set(keynr)))
++        ((table->keys_in_use_for_query.is_set(keynr))
++#ifdef ENABLE_SENNA
++	 || my_thread_var->sen_flags
++#endif /* ENABLE_SENNA */
++	 ))
+     {
+       ft_to_key[fts]=keynr;
+       ft_cnt[fts]=0;
+diff -Ndur ../mysql-5.1.15-beta.senna/libmysqld/item_sum.cc ./libmysqld/item_sum.cc
+--- ../mysql-5.1.15-beta.senna/libmysqld/item_sum.cc	2007-01-30 17:34:31.000000000 +0900
++++ ./libmysqld/item_sum.cc	2007-02-26 23:22:42.000000000 +0900
+@@ -2444,6 +2444,9 @@
+     return TRUE;
+ 
+   /* Create a table with an unique key over all parameters */
++#ifdef ENABLE_SENNA
++  my_thread_var->sen_flags |= 16;
++#endif /* ENABLE_SENNA */
+   for (uint i=0; i < arg_count ; i++)
+   {
+     Item *item=args[i];
+diff -Ndur ../mysql-5.1.15-beta.senna/libmysqld/records.cc ./libmysqld/records.cc
+--- ../mysql-5.1.15-beta.senna/libmysqld/records.cc	2007-01-30 17:34:12.000000000 +0900
++++ ./libmysqld/records.cc	2007-02-26 23:22:42.000000000 +0900
+@@ -223,6 +223,9 @@
+                     table->sort.found_records*info->ref_length;
+     info->read_record= (table->sort.addon_field ?
+                         rr_unpack_from_buffer : rr_from_pointers);
++#ifdef ENABLE_SENNA
++    my_thread_var->sen_flags |= 4;
++#endif /* ENABLE_SENNA */
+   }
+   else
+   {
+@@ -387,6 +390,9 @@
+   {
+     if (my_b_read(info->io_cache,info->ref_pos,info->ref_length))
+       return -1;					/* End of file */
++#ifdef ENABLE_SENNA
++    if ((my_thread_var->sen_flags & (1|4|8)) == (1|4)) { return 0; }
++#endif /* ENABLE_SENNA */
+     if (!(tmp=info->file->rnd_pos(info->record,info->ref_pos)))
+       break;
+     /* The following is extremely unlikely to happen */
+@@ -440,6 +446,9 @@
+     cache_pos= info->cache_pos;
+     info->cache_pos+= info->ref_length;
+ 
++#ifdef ENABLE_SENNA
++    if ((my_thread_var->sen_flags & (1|4|8)) == (1|4)) { return 0; }
++#endif /* ENABLE_SENNA */
+     if (!(tmp=info->file->rnd_pos(info->record,cache_pos)))
+       break;
+ 
+diff -Ndur ../mysql-5.1.15-beta.senna/libmysqld/sql_select.cc ./libmysqld/sql_select.cc
+--- ../mysql-5.1.15-beta.senna/libmysqld/sql_select.cc	2007-01-30 17:34:00.000000000 +0900
++++ ./libmysqld/sql_select.cc	2007-02-26 23:24:03.000000000 +0900
+@@ -1356,6 +1356,10 @@
+   int      tmp_error;
+   DBUG_ENTER("JOIN::exec");
+ 
++#ifdef ENABLE_SENNA
++  my_thread_var->sen_flags |= 32;
++#endif /* ENABLE_SENNA */
++
+   error= 0;
+   if (procedure)
+   {
+@@ -1868,6 +1872,10 @@
+   curr_join->fields= curr_fields_list;
+   curr_join->procedure= procedure;
+ 
++#ifdef ENABLE_SENNA
++  my_thread_var->sen_flags &= ~32;
++#endif /* ENABLE_SENNA */
++
+   if (is_top_level_join() && thd->cursor && tables != const_tables)
+   {
+     /*
+@@ -2044,7 +2052,10 @@
+       goto err;
+     }
+   }
+-
++#ifdef ENABLE_SENNA
++  my_thread_var->sen_flags = select_lex->ftfunc_list->elements ? 1 : 0;
++  if (join->select_distinct) { my_thread_var->sen_flags |= 16; }
++#endif /* ENABLE_SENNA */
+   if ((err= join->optimize()))
+   {
+     goto err;					// 1
+@@ -3444,7 +3455,11 @@
+   for ( ; field != end ; field++)
+     add_key_part(keyuse,field);
+ 
+-  if (select_lex->ftfunc_list->elements)
++  if (select_lex->ftfunc_list->elements
++#ifdef ENABLE_SENNA
++      && !join_tab->table->force_index
++#endif /* ENABLE_SENNA */
++      )
+   {
+     add_ft_keys(keyuse,join_tab,cond,normal_tables);
+   }
+@@ -6047,6 +6062,9 @@
+       table->status=STATUS_NO_RECORD;
+       tab->read_first_record= join_ft_read_first;
+       tab->read_record.read_record= join_ft_read_next;
++#ifdef ENABLE_SENNA
++      my_thread_var->sen_flags |= 4;
++#endif /* ENABLE_SENNA */
+       break;
+     case JT_ALL:
+       /*
+@@ -10322,6 +10340,20 @@
+   DBUG_RETURN(join->thd->net.report_error ? -1 : rc);
+ }
+ 
++#ifdef ENABLE_SENNA
++static void
++decide_read_or_skip(JOIN *join,JOIN_TAB *join_tab,bool needs_record)
++{
++  if (needs_record || (my_thread_var->sen_flags & 48) ||
++      (join_tab->next_select != end_send_group &&
++       !join->unit->offset_limit_cnt && 
++       join->send_records < join->unit->select_limit_cnt)) {
++    my_thread_var->sen_flags |= 8;
++  } else {
++    my_thread_var->sen_flags &= ~8;
++  }
++}
++#endif /* ENABLE_SENNA */
+ 
+ enum_nested_loop_state
+ sub_select_cache(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
+@@ -10467,6 +10499,9 @@
+ enum_nested_loop_state
+ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
+ {
++#ifdef ENABLE_SENNA
++  if (join_tab->next_select == end_update) { my_thread_var->sen_flags &= ~4; }
++#endif /* ENABLE_SENNA */
+   join_tab->table->null_row=0;
+   if (end_of_records)
+     return (*join_tab->next_select)(join,join_tab+1,end_of_records);
+@@ -10475,6 +10510,10 @@
+   enum_nested_loop_state rc;
+   my_bool *report_error= &(join->thd->net.report_error);
+   READ_RECORD *info= &join_tab->read_record;
++#ifdef ENABLE_SENNA
++  COND *select_cond = join_tab->select_cond;
++  bool needs_record = select_cond ? select_cond->needs_record() : false;
++#endif /* ENABLE_SENNA */
+ 
+   if (join->resume_nested_loop)
+   {
+@@ -10504,12 +10543,18 @@
+     }
+     join->thd->row_count= 0;
+ 
++#ifdef ENABLE_SENNA
++    decide_read_or_skip(join, join_tab, needs_record);
++#endif /* ENABLE_SENNA */
+     error= (*join_tab->read_first_record)(join_tab);
+     rc= evaluate_join_record(join, join_tab, error, report_error);
+   }
+ 
+   while (rc == NESTED_LOOP_OK)
+   {
++#ifdef ENABLE_SENNA
++    decide_read_or_skip(join, join_tab, needs_record);
++#endif /* ENABLE_SENNA */
+     error= info->read_record(info);
+     rc= evaluate_join_record(join, join_tab, error, report_error);
+   }
+@@ -11173,7 +11218,14 @@
+   tab->read_record.record=table->record[0];
+   if (!table->file->inited)
+     table->file->ha_index_init(tab->index, tab->sorted);
+-  if ((error=tab->table->file->index_first(tab->table->record[0])))
++#ifdef ENABLE_SENNA
++  if (my_thread_var->sen_flags & 1) { my_thread_var->sen_flags |= 4; }
++  if ((my_thread_var->sen_flags & (1|4|8)) == (1|4)) {
++    error=tab->table->file->index_first(NULL);
++  } else
++#endif /* ENABLE_SENNA */
++    error=tab->table->file->index_first(tab->table->record[0]);
++  if (error)
+   {
+     if (error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
+       report_error(table, error);
+@@ -11187,7 +11239,13 @@
+ join_read_next(READ_RECORD *info)
+ {
+   int error;
+-  if ((error=info->file->index_next(info->record)))
++#ifdef ENABLE_SENNA
++  if ((my_thread_var->sen_flags & (1|4|8)) == (1|4)) {
++    error=info->file->index_next(NULL);
++  } else
++#endif /* ENABLE_SENNA */
++    error=info->file->index_next(info->record);
++  if (error)
+     return report_error(info->table, error);
+   return 0;
+ }
+@@ -11212,7 +11270,14 @@
+   tab->read_record.record=table->record[0];
+   if (!table->file->inited)
+     table->file->ha_index_init(tab->index, 1);
+-  if ((error= tab->table->file->index_last(tab->table->record[0])))
++#ifdef ENABLE_SENNA
++  if (my_thread_var->sen_flags & 1) { my_thread_var->sen_flags |= 4; }
++  if ((my_thread_var->sen_flags & (1|4|8)) == (1|4)) {
++    error=tab->table->file->index_last(NULL);
++  } else
++#endif /* ENABLE_SENNA */
++    error= tab->table->file->index_last(tab->table->record[0]);
++  if (error)
+     return report_error(table, error);
+   return 0;
+ }
+@@ -11222,7 +11287,13 @@
+ join_read_prev(READ_RECORD *info)
+ {
+   int error;
+-  if ((error= info->file->index_prev(info->record)))
++#ifdef ENABLE_SENNA
++  if ((my_thread_var->sen_flags & (1|4|8)) == (1|4)) {
++    error=info->file->index_prev(NULL);
++  } else
++#endif /* ENABLE_SENNA */
++    error=info->file->index_prev(info->record);
++  if (error)
+     return report_error(info->table, error);
+   return 0;
+ }
+@@ -11236,6 +11307,9 @@
+ 
+   if (!table->file->inited)
+     table->file->ha_index_init(tab->ref.key, 1);
++#ifdef ENABLE_SENNA
++  if (my_thread_var->sen_flags & 1) { my_thread_var->sen_flags |= 4; }
++#endif /* ENABLE_SENNA */
+ #if NOT_USED_YET
+   /* as ft-key doesn't use store_key's, see also FT_SELECT::init() */
+   if (cp_buffer_from_ref(tab->join->thd, table, &tab->ref))
+@@ -12497,6 +12571,12 @@
+   table=  tab->table;
+   select= tab->select;
+ 
++  #ifdef ENABLE_SENNA
++    if (tab->select_cond && tab->select_cond->needs_record()) {
++      my_thread_var->sen_flags |= 8;
++    }
++  #endif /* ENABLE_SENNA */
++
+   /*
+     When there is SQL_BIG_RESULT do not sort using index for GROUP BY,
+     and thus force sorting on disk.
+diff -Ndur ../mysql-5.1.15-beta.senna/sql/filesort.cc ./sql/filesort.cc
+--- ../mysql-5.1.15-beta.senna/sql/filesort.cc	2007-01-30 17:34:12.000000000 +0900
++++ ./sql/filesort.cc	2007-02-26 23:22:42.000000000 +0900
+@@ -1365,6 +1365,9 @@
+       }
+       if (sortorder->field->maybe_null())
+ 	length++;				// Place for NULL marker
++#ifdef ENABLE_SENNA
++      my_thread_var->sen_flags |= 2;
++#endif /* ENABLE_SENNA */
+     }
+     else
+     {
+diff -Ndur ../mysql-5.1.15-beta.senna/sql/item.h ./sql/item.h
+--- ../mysql-5.1.15-beta.senna/sql/item.h	2007-01-30 17:34:29.000000000 +0900
++++ ./sql/item.h	2007-02-26 23:27:26.000000000 +0900
+@@ -743,6 +743,10 @@
+   */
+   virtual bool is_null() { return 0; }
+ 
++  #ifdef ENABLE_SENNA
++    virtual bool needs_record() { return true; }
++  #endif /* ENABLE_SENNA */
++
+   /*
+    Make sure the null_value member has a correct value.
+   */
+diff -Ndur ../mysql-5.1.15-beta.senna/sql/item_cmpfunc.cc ./sql/item_cmpfunc.cc
+--- ../mysql-5.1.15-beta.senna/sql/item_cmpfunc.cc	2007-01-30 17:34:26.000000000 +0900
++++ ./sql/item_cmpfunc.cc	2007-02-26 23:22:42.000000000 +0900
+@@ -2402,6 +2402,22 @@
+   return 0;
+ }
+ 
++#ifdef ENABLE_SENNA
++bool 
++Item_cond::needs_record()
++{
++  List_iterator_fast<Item> li(list);
++  Item *item;
++  while ((item=li++))
++  {
++    if (item->needs_record())
++    {
++      return true;
++    }
++  }
++  return false;
++}
++#endif /* ENABLE_SENNA */
+ 
+ /*
+   Perform context analysis of an IN item tree
+diff -Ndur ../mysql-5.1.15-beta.senna/sql/item_cmpfunc.h ./sql/item_cmpfunc.h
+--- ../mysql-5.1.15-beta.senna/sql/item_cmpfunc.h	2007-01-30 17:34:37.000000000 +0900
++++ ./sql/item_cmpfunc.h	2007-02-26 23:22:42.000000000 +0900
+@@ -1269,6 +1269,9 @@
+   void add_at_head(List<Item> *nlist) { list.prepand(nlist); }
+   bool fix_fields(THD *, Item **ref);
+ 
++#ifdef ENABLE_SENNA
++  bool needs_record();
++#endif /* ENABLE_SENNA */
+   enum Type type() const { return COND_ITEM; }
+   List<Item>* argument_list() { return &list; }
+   table_map used_tables() const;
+diff -Ndur ../mysql-5.1.15-beta.senna/sql/item_func.cc ./sql/item_func.cc
+--- ../mysql-5.1.15-beta.senna/sql/item_func.cc	2007-01-30 17:34:37.000000000 +0900
++++ ./sql/item_func.cc	2007-02-26 23:22:42.000000000 +0900
+@@ -4714,7 +4714,11 @@
+   for (keynr=0 ; keynr < table->s->keys ; keynr++)
+   {
+     if ((table->key_info[keynr].flags & HA_FULLTEXT) &&
+-        (table->keys_in_use_for_query.is_set(keynr)))
++        ((table->keys_in_use_for_query.is_set(keynr))
++#ifdef ENABLE_SENNA
++	 || my_thread_var->sen_flags
++#endif /* ENABLE_SENNA */
++	 ))
+     {
+       ft_to_key[fts]=keynr;
+       ft_cnt[fts]=0;
+diff -Ndur ../mysql-5.1.15-beta.senna/sql/item_func.h ./sql/item_func.h
+--- ../mysql-5.1.15-beta.senna/sql/item_func.h	2007-01-30 17:34:12.000000000 +0900
++++ ./sql/item_func.h	2007-02-26 23:22:42.000000000 +0900
+@@ -1357,6 +1357,9 @@
+   table_map not_null_tables() const { return 0; }
+   bool fix_fields(THD *thd, Item **ref);
+   bool eq(const Item *, bool binary_cmp) const;
++#ifdef ENABLE_SENNA
++  bool needs_record() { return false; }
++#endif /* ENABLE_SENNA */
+   /* The following should be safe, even if we compare doubles */
+   longlong val_int() { DBUG_ASSERT(fixed == 1); return val_real() != 0.0; }
+   double val_real();
+diff -Ndur ../mysql-5.1.15-beta.senna/sql/item_sum.cc ./sql/item_sum.cc
+--- ../mysql-5.1.15-beta.senna/sql/item_sum.cc	2007-01-30 17:34:31.000000000 +0900
++++ ./sql/item_sum.cc	2007-02-26 23:22:42.000000000 +0900
+@@ -2444,6 +2444,9 @@
+     return TRUE;
+ 
+   /* Create a table with an unique key over all parameters */
++#ifdef ENABLE_SENNA
++  my_thread_var->sen_flags |= 16;
++#endif /* ENABLE_SENNA */
+   for (uint i=0; i < arg_count ; i++)
+   {
+     Item *item=args[i];
+diff -Ndur ../mysql-5.1.15-beta.senna/sql/records.cc ./sql/records.cc
+--- ../mysql-5.1.15-beta.senna/sql/records.cc	2007-01-30 17:34:12.000000000 +0900
++++ ./sql/records.cc	2007-02-26 23:22:42.000000000 +0900
+@@ -223,6 +223,9 @@
+                     table->sort.found_records*info->ref_length;
+     info->read_record= (table->sort.addon_field ?
+                         rr_unpack_from_buffer : rr_from_pointers);
++#ifdef ENABLE_SENNA
++    my_thread_var->sen_flags |= 4;
++#endif /* ENABLE_SENNA */
+   }
+   else
+   {
+@@ -387,6 +390,9 @@
+   {
+     if (my_b_read(info->io_cache,info->ref_pos,info->ref_length))
+       return -1;					/* End of file */
++#ifdef ENABLE_SENNA
++    if ((my_thread_var->sen_flags & (1|4|8)) == (1|4)) { return 0; }
++#endif /* ENABLE_SENNA */
+     if (!(tmp=info->file->rnd_pos(info->record,info->ref_pos)))
+       break;
+     /* The following is extremely unlikely to happen */
+@@ -440,6 +446,9 @@
+     cache_pos= info->cache_pos;
+     info->cache_pos+= info->ref_length;
+ 
++#ifdef ENABLE_SENNA
++    if ((my_thread_var->sen_flags & (1|4|8)) == (1|4)) { return 0; }
++#endif /* ENABLE_SENNA */
+     if (!(tmp=info->file->rnd_pos(info->record,cache_pos)))
+       break;
+ 
+diff -Ndur ../mysql-5.1.15-beta.senna/sql/sql_select.cc ./sql/sql_select.cc
+--- ../mysql-5.1.15-beta.senna/sql/sql_select.cc	2007-01-30 17:34:00.000000000 +0900
++++ ./sql/sql_select.cc	2007-02-26 23:26:48.000000000 +0900
+@@ -1356,6 +1356,10 @@
+   int      tmp_error;
+   DBUG_ENTER("JOIN::exec");
+ 
++#ifdef ENABLE_SENNA
++  my_thread_var->sen_flags |= 32;
++#endif /* ENABLE_SENNA */
++
+   error= 0;
+   if (procedure)
+   {
+@@ -1868,6 +1872,10 @@
+   curr_join->fields= curr_fields_list;
+   curr_join->procedure= procedure;
+ 
++#ifdef ENABLE_SENNA
++  my_thread_var->sen_flags &= ~32;
++#endif /* ENABLE_SENNA */
++
+   if (is_top_level_join() && thd->cursor && tables != const_tables)
+   {
+     /*
+@@ -2044,7 +2052,10 @@
+       goto err;
+     }
+   }
+-
++#ifdef ENABLE_SENNA
++  my_thread_var->sen_flags = select_lex->ftfunc_list->elements ? 1 : 0;
++  if (join->select_distinct) { my_thread_var->sen_flags |= 16; }
++#endif /* ENABLE_SENNA */
+   if ((err= join->optimize()))
+   {
+     goto err;					// 1
+@@ -3444,7 +3455,11 @@
+   for ( ; field != end ; field++)
+     add_key_part(keyuse,field);
+ 
+-  if (select_lex->ftfunc_list->elements)
++  if (select_lex->ftfunc_list->elements
++#ifdef ENABLE_SENNA
++      && !join_tab->table->force_index
++#endif /* ENABLE_SENNA */
++      )
+   {
+     add_ft_keys(keyuse,join_tab,cond,normal_tables);
+   }
+@@ -6047,6 +6062,9 @@
+       table->status=STATUS_NO_RECORD;
+       tab->read_first_record= join_ft_read_first;
+       tab->read_record.read_record= join_ft_read_next;
++#ifdef ENABLE_SENNA
++      my_thread_var->sen_flags |= 4;
++#endif /* ENABLE_SENNA */
+       break;
+     case JT_ALL:
+       /*
+@@ -10322,6 +10340,20 @@
+   DBUG_RETURN(join->thd->net.report_error ? -1 : rc);
+ }
+ 
++#ifdef ENABLE_SENNA
++static void
++decide_read_or_skip(JOIN *join,JOIN_TAB *join_tab,bool needs_record)
++{
++  if (needs_record || (my_thread_var->sen_flags & 48) ||
++      (join_tab->next_select != end_send_group &&
++       !join->unit->offset_limit_cnt && 
++       join->send_records < join->unit->select_limit_cnt)) {
++    my_thread_var->sen_flags |= 8;
++  } else {
++    my_thread_var->sen_flags &= ~8;
++  }
++}
++#endif /* ENABLE_SENNA */
+ 
+ enum_nested_loop_state
+ sub_select_cache(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
+@@ -10467,6 +10499,9 @@
+ enum_nested_loop_state
+ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
+ {
++#ifdef ENABLE_SENNA
++  if (join_tab->next_select == end_update) { my_thread_var->sen_flags &= ~4; }
++#endif /* ENABLE_SENNA */
+   join_tab->table->null_row=0;
+   if (end_of_records)
+     return (*join_tab->next_select)(join,join_tab+1,end_of_records);
+@@ -10475,6 +10510,10 @@
+   enum_nested_loop_state rc;
+   my_bool *report_error= &(join->thd->net.report_error);
+   READ_RECORD *info= &join_tab->read_record;
++#ifdef ENABLE_SENNA
++  COND *select_cond = join_tab->select_cond;
++  bool needs_record = select_cond ? select_cond->needs_record() : false;
++#endif /* ENABLE_SENNA */
+ 
+   if (join->resume_nested_loop)
+   {
+@@ -10504,12 +10543,18 @@
+     }
+     join->thd->row_count= 0;
+ 
++#ifdef ENABLE_SENNA
++    decide_read_or_skip(join, join_tab, needs_record);
++#endif /* ENABLE_SENNA */
+     error= (*join_tab->read_first_record)(join_tab);
+     rc= evaluate_join_record(join, join_tab, error, report_error);
+   }
+ 
+   while (rc == NESTED_LOOP_OK)
+   {
++#ifdef ENABLE_SENNA
++    decide_read_or_skip(join, join_tab, needs_record);
++#endif /* ENABLE_SENNA */
+     error= info->read_record(info);
+     rc= evaluate_join_record(join, join_tab, error, report_error);
+   }
+@@ -11173,7 +11218,14 @@
+   tab->read_record.record=table->record[0];
+   if (!table->file->inited)
+     table->file->ha_index_init(tab->index, tab->sorted);
+-  if ((error=tab->table->file->index_first(tab->table->record[0])))
++#ifdef ENABLE_SENNA
++  if (my_thread_var->sen_flags & 1) { my_thread_var->sen_flags |= 4; }
++  if ((my_thread_var->sen_flags & (1|4|8)) == (1|4)) {
++    error=tab->table->file->index_first(NULL);
++  } else
++#endif /* ENABLE_SENNA */
++    error=tab->table->file->index_first(tab->table->record[0]);
++  if (error)
+   {
+     if (error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
+       report_error(table, error);
+@@ -11187,7 +11239,13 @@
+ join_read_next(READ_RECORD *info)
+ {
+   int error;
+-  if ((error=info->file->index_next(info->record)))
++#ifdef ENABLE_SENNA
++  if ((my_thread_var->sen_flags & (1|4|8)) == (1|4)) {
++    error=info->file->index_next(NULL);
++  } else
++#endif /* ENABLE_SENNA */
++    error=info->file->index_next(info->record);
++  if (error)
+     return report_error(info->table, error);
+   return 0;
+ }
+@@ -11212,7 +11270,14 @@
+   tab->read_record.record=table->record[0];
+   if (!table->file->inited)
+     table->file->ha_index_init(tab->index, 1);
+-  if ((error= tab->table->file->index_last(tab->table->record[0])))
++#ifdef ENABLE_SENNA
++  if (my_thread_var->sen_flags & 1) { my_thread_var->sen_flags |= 4; }
++  if ((my_thread_var->sen_flags & (1|4|8)) == (1|4)) {
++    error=tab->table->file->index_last(NULL);
++  } else
++#endif /* ENABLE_SENNA */
++    error= tab->table->file->index_last(tab->table->record[0]);
++  if (error)
+     return report_error(table, error);
+   return 0;
+ }
+@@ -11222,7 +11287,13 @@
+ join_read_prev(READ_RECORD *info)
+ {
+   int error;
+-  if ((error= info->file->index_prev(info->record)))
++#ifdef ENABLE_SENNA
++  if ((my_thread_var->sen_flags & (1|4|8)) == (1|4)) {
++    error=info->file->index_prev(NULL);
++  } else
++#endif /* ENABLE_SENNA */
++    error=info->file->index_prev(info->record);
++  if (error)
+     return report_error(info->table, error);
+   return 0;
+ }
+@@ -11236,6 +11307,9 @@
+ 
+   if (!table->file->inited)
+     table->file->ha_index_init(tab->ref.key, 1);
++#ifdef ENABLE_SENNA
++  if (my_thread_var->sen_flags & 1) { my_thread_var->sen_flags |= 4; }
++#endif /* ENABLE_SENNA */
+ #if NOT_USED_YET
+   /* as ft-key doesn't use store_key's, see also FT_SELECT::init() */
+   if (cp_buffer_from_ref(tab->join->thd, table, &tab->ref))
+@@ -12497,6 +12571,12 @@
+   table=  tab->table;
+   select= tab->select;
+ 
++  #ifdef ENABLE_SENNA
++    if (tab->select_cond && tab->select_cond->needs_record()) {
++      my_thread_var->sen_flags |= 8;
++    }
++  #endif /* ENABLE_SENNA */
++
+   /*
+     When there is SQL_BIG_RESULT do not sort using index for GROUP BY,
+     and thus force sorting on disk.
+diff -Ndur ../mysql-5.1.15-beta.senna/storage/myisam/ft_boolean_search.c ./storage/myisam/ft_boolean_search.c
+--- ../mysql-5.1.15-beta.senna/storage/myisam/ft_boolean_search.c	2007-02-26 21:07:21.000000000 +0900
++++ ./storage/myisam/ft_boolean_search.c	2007-02-26 23:22:42.000000000 +0900
+@@ -794,6 +794,7 @@
+     while (ftb->sir && sen_records_next(ftb->sir, &pos, sizeof(my_off_t), NULL)) {
+       info->update&= (HA_STATE_CHANGED | HA_STATE_ROW_CHANGED);
+       info->lastpos=pos;
++      if (!(my_thread_var->sen_flags & (8|2))) { return 0; }
+       if (!(*info->read_record)(info,info->lastpos,record)) {
+         info->update|= HA_STATE_AKTIV;          /* Record is read */
+         return 0;
+diff -Ndur ../mysql-5.1.15-beta.senna/storage/myisam/ft_nlq_search.c ./storage/myisam/ft_nlq_search.c
+--- ../mysql-5.1.15-beta.senna/storage/myisam/ft_nlq_search.c	2007-02-26 21:07:21.000000000 +0900
++++ ./storage/myisam/ft_nlq_search.c	2007-02-26 23:22:42.000000000 +0900
+@@ -334,6 +334,7 @@
+     while (sen_records_next(handler->sir, &pos, sizeof(my_off_t), NULL))
+     {
+       info->lastpos=pos;
++      if (!(my_thread_var->sen_flags & (8|2))) { return 0; }
+       if (!(*info->read_record)(info,info->lastpos,record))
+       {
+ 	info->update|= HA_STATE_AKTIV;		/* Record is read */

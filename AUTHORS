@@ -1,0 +1,32 @@
+Primary author:
+Daijiro MORI <senna at razil.jp>
+
+senna-cfg:
+Daisuke Maki <dmaki at cpan.org>
+
+MySQL binding:
+Kazuhiro Osawa <ko at yappo.ne.jp>
+
+Mac OS X porting:
+Hiroyuki OYAMA <oyama at module.jp>
+
+Ruby binding:
+Nguyen Anh Phu <phuna at users.sourceforge.net>
+
+snippet function, sennachk:
+Tasuku SUENAGA <a at razil.jp>
+
+win32 porting:
+Hideyuki KUROSU <hideyuki.kurosu at gmail.com>
+
+AIO/DIO based cache:
+Takuo Kitame <kitame at valinux. co. jp>
+
+enhancement of MySQL binding and sen_index_info():
+Moriyoshi Koizumi <koizumi at gree.co.jp>
+
+sen_query_term function:
+Yoshihiro Oyama <yos-o at smilemark.com>
+
+autogen.sh:
+Yutaro Shimamura <yu at razil.jp>

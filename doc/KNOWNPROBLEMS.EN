@@ -1,0 +1,121 @@
+* known problems
+
+* Limitations
+
+** Limits about index
+
+In one index, logical limits in Senna are below.
+
+-max record count : 268,435,455
+-max lexicon count : 268,435,455
+-max index size : 256GByte
+
+(Actually, other conditions may interfere for Senna to attain these limits.)
+
+** About MySQL bindings
+
+*** We support only MyISAM
+
+InnoDB is not supported.
+
+*** Japanese encoding method is EUC
+
+If you want to handle UTF-8 without explicitly specify encoding on creating index,
+make /var/senna/senna.conf,
+and write below.
+ DEFAULT_ENCODING utf8
+
+*** About 2ind-patch
+
+2ind-patch may not be able to handle some type of query.
+
+*** MySQL with 2ind patch returns results which is not sorted by score
+
+ex.) with FORCE INDEX, sorting order is different from what you want.
+ SELECT 
+ SQL_NO_CACHE cur_title FROM cur
+ WHERE match(cur_text) against('united states') LIMIT 0, 100;
+
+ SELECT 
+ SQL_NO_CACHE cur_title FROM cur FORCE INDEX(PRIMARY)
+ WHERE match(cur_text) against('united states') LIMIT 0, 100;
+
+*** Replications, Boolean Mode are supported.
+
+*** To get results faster.
+
+MySQL's data reading is slow compared to search in Senna.
+So, you can get results quick with limit like 'limit 0, 10'.
+
+'Select count(*)' query which contains many results is slow without 2ind-patch.
+Because MySQL without 2ind-patch cannot use two index at one time.
+You can get results quick with 2ind-patch.
+
+*** After 'optimize table', you have to rebuild the index of Senna.
+
+After you execute 'optimize table',
+
+you have to execute either one.
+-drop index and create index
+-stop MySQL daemon, and execute 'myisamchk -r' for the tables indexed by Senna.
+
+*** After Senna's major version up, rebuild the index of Senna.
+Senna's major version up may change the format of fulltext index.
+
+you have to execute either one.
+-drop index and create index
+-stop MySQL daemon, and execute 'myisamchk -r' for the tables indexed by Senna.
+
+** use in multi-process/multi-thread
+
+You cannot 'update' one index at a time in multi-process/multi-thread environments.
+If you do so, you have to update with exclusive access control.
+
+** About SEN_SPLIT_ALPHA,DIGIT,SYMBOL
+
+SEN_SPLIT_ALPHA,DIGIT,SYMBOL options have no effect in absense of SEN_INDEX_NORLALIZE.
+
+** About sen_records_find, sen_records_at
+
+You cannot get valid results with sen_records_next 
+after you use sen_records_find or sen_records_at.
+You have to execute sen_records_rewind and initialize the cursor.
+
+** About opentag and closetag in snippet API
+
+If you use snippet functions,
+you cannot modify data in a buffer which is passed as opentag or closetag 
+before you call sen_snip_close.
+
+** About sen_sel_partial option, sen_sym_suffix_search
+
+In below case, 
+you cannot execute 'suffix' search in searching with sen_sel_search or sen_sym_suffix_search.
+
+-alphabet, number, symbol in euc-jp/sjis/utf-8 text
+-index is created with SEN_INDEX_DELIMTED option.
+
+Because, English words generally vary in it's suffix but prefix.
+
+** Indexes in Windows and Linux are different.
+
+** stddef.h is required
+senna.h uses some C99 types like size_t,
+you have to include 'stddef.h' before you include 'senna.h'.
+
+* Bugs
+
+** Now, you cannot use Senna with AIO/DIO.
+
+Senna has a user level cache with AIO/DIO which is implemented in Linux 2.6.
+But, this feature is not stable. Segmentation fault may occur.
+
+This problem is reported by Yappo.
+
+** In 64 bit environment, you cannot make Senna with AIO/DIO.
+
+** In snippet API, some snippets overlap.
+
+** Bugs in searching with sen_sel_near option
+
+Words of which df is 0 are searched preferentially.

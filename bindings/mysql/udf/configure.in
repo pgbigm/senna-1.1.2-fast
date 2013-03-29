@@ -1,0 +1,58 @@
+AC_INIT([senna-mysql-snippet], [0.2.0], [senna@razil.jp])
+AM_INIT_AUTOMAKE(AC_PACKAGE_NAME, AC_PACKAGE_VERSION)
+
+AM_PROG_LIBTOOL
+AC_PROG_CC
+AC_PROG_INSTALL
+
+SENNA_INCLUDES=
+SENNA_LIBS=
+
+AC_ARG_WITH(senna,
+  [  --with-senna=[=DIR]	Specify install prefix of Senna], [
+    SENNA_PREFIX="$withval"
+    SENNA_CFG="$SENNA_PREFIX/bin/senna-cfg"
+    if test -x "$SENNA_CFG"; then
+      SENNA_INCLUDES="`\"$SENNA_CFG\" --cflags`"
+      SENNA_LIBS="`\"$SENNA_CFG\" --libs` -lsenna"
+    else
+      SENNA_INCLUDES="-I$SENNA_PREFIX/include"
+      SENNA_LIBS="-L$SENNA_PREFIX/lib -lsenna"
+    fi
+  ], [
+      SENNA_CFG="senna-cfg"
+      SENNA_INCLUDES="`\"$SENNA_CFG\" --cflags`"
+      SENNA_LIBS="`\"$SENNA_CFG\" --libs` -lsenna"
+  ]
+)
+
+AC_ARG_WITH(mysql,
+  [  --with-mysql=[=DIR]	Specify install prefix of MySQL], [
+    MYSQL_PREFIX="$withval"
+    MYSQL_CFG="$MYSQL_PREFIX/bin/mysql_config"
+    if test -x "$MYSQL_CFG"; then
+      MYSQL_INCLUDES="`\"$MYSQL_CFG\" --cflags`"
+    else
+      MYSQL_INCLUDES="-I$MYSQL_PREFIX/include"
+    fi
+  ], [
+    MYSQL_CFG="mysql_config"
+    MYSQL_INCLUDES="`\"$MYSQL_CFG\" --cflags`"
+  ]
+)
+
+CFLAGS="${CFLAGS} ${SENNA_INCLUDES} ${MYSQL_INCLUDES}"
+LIBS="${LIBS} ${SENNA_LIBS}"
+
+AC_HEADER_STDC
+AC_CHECK_HEADERS([limits.h stdlib.h string.h])
+
+AC_TYPE_SIZE_T
+
+AC_CHECK_FUNCS([malloc])
+AC_CHECK_FUNCS([realloc])
+AC_CHECK_FUNCS([memset])
+
+AC_CONFIG_FILES([Makefile])
+AC_OUTPUT
+

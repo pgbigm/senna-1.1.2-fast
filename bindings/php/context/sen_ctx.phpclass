@@ -1,0 +1,116 @@
+<?php
+
+class Senna_DB {
+
+  public $handle;
+
+  function create($path,$flag=0,$encoding=SEN_ENC_DEFAULT) {
+    $res = new Senna_DB;
+    $res->handle = sen_db_create($path,$flag,$encoding);
+    return $res;
+  }
+
+  function open($path) {
+    $res = new Senna_DB;
+    $res->handle = sen_db_open($path);
+    return $res;
+  }
+
+  function close()
+  {
+    if (sen_db_close($this->handle)) {
+      return TRUE;
+    }
+  }
+
+}
+
+class Senna_CTX {
+
+  public $handle;
+
+  function open($db,$flag = SEN_CTX_USEQL) {
+    $res = new Senna_CTX;
+    $res->handle = sen_ctx_open($db->handle,$flag);
+    return $res;
+  }
+
+  function connect($host=localhost,$port=10041,$flag = SEN_CTX_USEQL) {
+    $res = new Senna_CTX;
+    $res->handle = sen_ctx_connect($host,$port,$flag);
+    return $res;
+  }
+
+  function pconnect($host=localhost,$port=10041,$flag = SEN_CTX_USEQL) {
+    $res = new Senna_CTX;
+    $res->handle = sen_ctx_pconnect($host,$port,$flag);
+    return $res;
+  }
+
+  function close() {
+    if (sen_ctx_close($this->handle)) {
+      return TRUE;
+    }
+  }
+
+  function load($path) {
+    if (sen_ctx_load($this->handle,$path)) {
+      return FALSE;
+    }
+    return TRUE;
+  }
+
+  function send($query,$flag = 0) {
+    if (sen_ctx_send($this->handle,$query,$flag)) {
+      return FALSE;
+    }
+    return TRUE;
+  }
+
+  function recv() {
+    $smry = sen_ctx_recv($this->handle);
+    if ($smry[0]) {
+      return FALSE;
+    }
+    return array($smry[1],$smry[2]);
+  }
+
+  function exec($query) {
+    if (is_array($query)) {
+      reset($query);
+      $n = count($query);
+      for ($i=0; $i<$n; $i++) {
+        if ($i<$n-1) {
+          $flag=SEN_CTX_MORE;
+        } else {
+          $flag=0;
+        }
+        sen_ctx_send($this->handle,$query[$i],$flag);
+      }
+    } else {
+      sen_ctx_send($this->handle,$query,$flag);
+    }
+
+    $return=array();
+
+    while (1) {
+      $smry = sen_ctx_recv($this->handle);
+        if ($smry[0]) {
+          return FALSE;
+        }
+
+      array_push($return,$smry[1]);
+
+      if (SEN_CTX_MORE &! $smry[2]) {
+        break;
+      }
+    }
+    return $return;
+  }
+
+  function info_get() {
+    $smry = sen_ctx_info_get($this->handle);
+    return array('fd'=>$smry[fd],'status'=>$smry['status'],'info'=>$smry['info']);
+  }
+
+}

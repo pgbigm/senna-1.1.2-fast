@@ -1,0 +1,130 @@
+LIBRARY "libsenna"
+
+VERSION 0.4
+
+EXPORTS
+
+;basic API
+
+sen_init                            @1
+sen_fin                             @2
+sen_info                            @18
+
+sen_index_create                    @3
+sen_index_open                      @4
+sen_index_close                     @5
+sen_index_remove                    @6
+sen_index_rename                    @16
+sen_index_upd                       @7
+sen_index_sel                       @8
+sen_index_del                       @17
+
+sen_records_next                    @9
+sen_records_rewind                  @10
+sen_records_curr_score              @11
+sen_records_curr_key                @12
+sen_records_nhits                   @13
+sen_records_find                    @14
+sen_records_close                   @15
+
+;advanced API
+
+sen_values_open                     @20
+sen_values_close                    @21
+sen_values_add                      @22
+
+sen_records_open                    @23
+sen_records_union                   @24
+sen_records_subtract                @25
+sen_records_intersect               @26
+sen_records_difference              @27
+sen_records_sort                    @28
+sen_records_group                   @29
+sen_records_curr_rec                @30
+sen_records_at                      @31
+sen_record_info                     @32
+sen_record_subrec_info              @33
+
+sen_index_create_with_keys          @34
+sen_index_open_with_keys            @35
+sen_index_update                    @36
+sen_index_select                    @37
+sen_index_info                      @38
+sen_index_path                      @39
+;sen_index_related_terms            @40
+sen_index_create_with_keys_lexicon  @46
+sen_index_open_with_keys_lexicon    @47
+
+sen_query_open                      @41
+sen_query_rest                      @42
+sen_query_close                     @43
+sen_query_exec                      @44
+sen_query_term                      @45
+sen_query_scan                      @48
+sen_query_snip                      @49
+
+;low level API
+
+sen_set_open                        @50
+sen_set_close                       @51
+sen_set_info                        @52
+sen_set_get                         @53
+sen_set_at                          @54
+sen_set_del                         @55
+sen_set_cursor_open                 @56
+sen_set_cursor_next                 @57
+sen_set_cursor_close                @58
+sen_set_element_info                @59
+sen_set_union                       @60
+sen_set_subtract                    @70
+sen_set_intersect                   @71
+sen_set_difference                  @72
+sen_set_sort                        @73
+
+sen_sym_create                      @74
+sen_sym_open                        @75
+sen_sym_info                        @76
+sen_sym_close                       @77
+sen_sym_remove                      @78
+sen_sym_get                         @79
+sen_sym_at                          @80
+sen_sym_del                         @81
+sen_sym_size                        @82
+sen_sym_key                         @83
+sen_sym_prefix_search               @84
+sen_sym_suffix_search               @85
+sen_sym_common_prefix_search        @86
+sen_sym_pocket_get                  @87
+sen_sym_pocket_set                  @88
+sen_sym_next                        @89
+
+;utility API
+sen_snip_open                       @100
+sen_snip_close                      @101
+sen_snip_add_cond                   @102
+sen_snip_exec                       @103
+sen_snip_get_result                 @104
+sen_records_heap_open               @110
+sen_records_heap_add                @111
+sen_records_heap_next               @112
+sen_records_heap_head               @113
+sen_records_heap_close              @114
+sen_inv_entry_info                  @120
+
+;query language API
+sen_db_create                       @200
+sen_db_open                         @201
+sen_db_close                        @202
+
+sen_ctx_open                        @220
+sen_ctx_connect                     @221
+sen_ctx_load                        @222
+sen_ctx_send                        @223
+sen_ctx_recv                        @224
+sen_ctx_close                       @225
+sen_ctx_info_get                    @226
+
+;misc
+sen_logger_info_set                 @500
+sen_logger_put                      @501
+sen_logger_pass                     @502

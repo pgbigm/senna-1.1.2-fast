@@ -1,0 +1,32 @@
+* Future works
+
+This is a list of future works of Senna.
+The developer is being recruited !
+
+** Search engine core
+
+- Extends scoring algorithm(like Pivoted Unique Normalization) (not started)
+
+** Storage engines
+
+- Sqlite bindings (little done)
+- Firebird bindings (not started)
+- PostgreSQL bindings
+
+** Programming languages bindings
+
+- PHP binding (Now, not maintained)
+- Java binding (not started)
+- Python binding (Masatake Iwasaki does: http://sourceforge.jp/projects/pysenna/)
+
+** Server side
+
+- Support for distributed environments (ex. MySQL Cluster support) (little done)
+- Support for CMS (like MT) (not started)
+- Support for apache module (not started)
+- Support for application framework (like Ruby On Rails) (not started)
+
+** Client side
+
+- MUA which classifies mails with fulltext search (not started)
+- Desktop search (not started)

@@ -1,0 +1,2137 @@
+diff -Nurd mysql-4.0.27/config.h.in mysql-4.0.27.senna/config.h.in
+--- mysql-4.0.27/config.h.in	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/config.h.in	2007-02-06 17:26:43.000000000 +0900
+@@ -294,6 +294,9 @@
+ /* Support big tables */
+ #undef BIG_TABLES
+ 
++/* Define to 1 if Senna is enabled */
++#undef ENABLE_SENNA
++
+ /* Define to 1 if you have the `alarm' function. */
+ #undef HAVE_ALARM
+ 
+@@ -507,6 +510,9 @@
+ /* Define to 1 if you have the <malloc.h> header file. */
+ #undef HAVE_MALLOC_H
+ 
++/* Define to 1 if libmecab is available */
++#undef HAVE_MECAB
++
+ /* Define to 1 if you have the `memcpy' function. */
+ #undef HAVE_MEMCPY
+ 
+diff -Nurd mysql-4.0.27/configure.in mysql-4.0.27.senna/configure.in
+--- mysql-4.0.27/configure.in	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/configure.in	2007-02-06 17:26:43.000000000 +0900
+@@ -784,6 +784,110 @@
+     ;;
+ esac
+ 
++# For senna
++AC_ARG_WITH(mecab,
++[  --with-mecab[=DIR]        Specify install prefix of mecab], [
++  if test "$withval" = "yes"; then
++    MECAB_PREFIX=""
++  else
++    MECAB_PREFIX="$withval"
++  fi
++], [
++  MECAB_PREFIX=""
++])
++
++MECAB_INCLUDES=
++MECAB_LIBS=
++
++if test -z "$MECAB_PREFIX"; then
++  if eval 'mecab-config --prefix 2>&1 >/dev/null'; then
++    MECAB_CONFIG='mecab-config'
++    MECAB_PREFIX='mecab-config --prefix'
++    MECAB_INCLUDES="`\"$MECAB_CONFIG\" --cflags`"
++    MECAB_LIBS="${LDFLAGS} `\"$MECAB_CONFIG\" --libs`"
++  fi
++else
++  MECAB_CONFIG="$MECAB_PREFIX/bin/mecab-config"
++
++  if test -x "$MECAB_CONFIG"; then
++    MECAB_INCLUDES="`\"$MECAB_CONFIG\" --cflags`"
++    MECAB_LIBS="`\"$MECAB_CONFIG\" --libs`"
++  else
++    MECAB_INCLUDES="-I$MECAB_PREFIX/include"
++    MECAB_LIBS="-L$MECAB_PREFIX/lib"
++  fi
++fi
++ 
++_CPPFLAGS="${CPPFLAGS}"
++_LIBS="${LIBS}"
++CPPFLAGS="${CPPFLAGS} ${MECAB_INCLUDES}"
++LIBS="${LIBS} ${MECAB_LIBS}"
++ 
++AC_CHECK_FUNC(mecab_new, [
++  AC_DEFINE([HAVE_MECAB], [1], [Define to 1 if libmecab is available])
++  HAVE_MECAB=1
++], [
++  HAVE_MECAB=
++  MECAB_INCLUDES=
++  MECAB_LIBS=
++])
++
++CPPFLAGS="${_CPPFLAGS}"
++LIBS="${_LIBS}"
++
++AC_SUBST(MECAB_INCLUDES)
++AC_SUBST(MECAB_LIBS)
++
++SENNA_INCLUDES=
++SENNA_LIBS=
++
++AC_ARG_WITH(senna,
++[  --with-senna[=DIR]        Enable Senna fulltext search support], [
++  case "$withval" in
++  no) : ;;
++  yes|*)
++    if test "$withval" = "yes"; then
++      if eval 'senna-cfg --cflags 2>&1 >/dev/null'; then
++        SENNA_CFG="senna-cfg"
++        SENNA_PREFIX="senna-cfg --prefix"
++        SENNA_INCLUDES="`\"$SENNA_CFG\" --cflags` $MECAB_INCLUDES"
++        SENNA_LIBS="`\"$SENNA_CFG\" --libs` -lsenna $MECAB_LIBS"
++      else 
++        SENNA_INCLUDES="$MECAB_INCLUDES"
++        SENNA_LIBS="-lsenna $MECAB_LIBS"
++      fi
++    else
++      SENNA_PREFIX="$withval"
++      SENNA_CFG="$SENNA_PREFIX/bin/senna-cfg"
++      if test -x "$SENNA_CFG"; then
++        SENNA_INCLUDES="`\"$SENNA_CFG\" --cflags` $MECAB_INCLUDES"
++        SENNA_LIBS="`\"$SENNA_CFG\" --libs` -lsenna $MECAB_LIBS"
++      else
++        SENNA_INCLUDES="-I$SENNA_PREFIX/include $MECAB_INCLUDES"
++        SENNA_LIBS="-L$SENNA_PREFIX/lib -lsenna $MECAB_LIBS"
++      fi
++    fi
++
++    _CPPFLAGS="${CPPFLAGS}"
++    _LIBS="${LIBS}"
++    CPPFLAGS="${CPPFLAGS} ${SENNA_INCLUDES}"
++    LIBS="${LIBS} ${SENNA_LIBS}"
++ 
++    AC_CHECK_FUNC(sen_init, [
++      AC_DEFINE([ENABLE_SENNA], [1], [Define to 1 if Senna is enabled])
++    ], [
++      AC_MSG_ERROR([Could not find libsenna. Check your Senna installation.])
++    ])
++
++    CPPFLAGS="${_CPPFLAGS}"
++    LIBS="${_LIBS}"
++    ;;
++  esac
++])
++
++AC_SUBST([SENNA_INCLUDES])
++AC_SUBST([SENNA_LIBS])
++
+ #--------------------------------------------------------------------
+ # Check for TCP wrapper support
+ #--------------------------------------------------------------------
+diff -Nurd mysql-4.0.27/include/ft_global.h mysql-4.0.27.senna/include/ft_global.h
+--- mysql-4.0.27/include/ft_global.h	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/include/ft_global.h	2007-02-06 17:26:43.000000000 +0900
+@@ -60,6 +60,9 @@
+ #define FT_NL  0
+ #define FT_BOOL 1
+ FT_INFO *ft_init_search(uint,void *, uint, byte *, uint, my_bool);
++#ifdef ENABLE_SENNA
++FT_INFO *myrg_ft_init_search(uint,void *, uint, byte *, uint, my_bool);
++#endif /* ENABLE_SENNA */
+ 
+ #ifdef  __cplusplus
+ }
+diff -Nurd mysql-4.0.27/include/myisam.h mysql-4.0.27.senna/include/myisam.h
+--- mysql-4.0.27/include/myisam.h	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/include/myisam.h	2007-02-06 17:26:43.000000000 +0900
+@@ -29,6 +29,12 @@
+ #include <m_ctype.h>
+ #endif
+ 
++#ifdef ENABLE_SENNA
++#include <senna.h>
++#define SEN_DISABLE_SENNA	0x80000000 /* Don't use Senna fulltext search engine */
++#define SEN_DISABLE_NORMALIZE	0x40000000
++#endif /* ENABLE_SENNA */
++
+ 	/* defines used by myisam-funktions */
+ 
+ /* The following defines can be increased if necessary */
+@@ -86,6 +92,14 @@
+   ulong *rec_per_key;			/* for sql optimizing */
+   uint raid_type,raid_chunks;
+   ulong raid_chunksize;
++#ifdef ENABLE_SENNA
++  unsigned int senna_keys_file_size;
++  unsigned int senna_keys_size;
++  unsigned int senna_lexicon_file_size;
++  unsigned int senna_lexicon_size;
++  unsigned int senna_inv_seg_size;
++  unsigned int senna_inv_chunk_size;
++#endif /* ENABLE_SENNA */
+ } MI_ISAMINFO;
+ 
+ 
+@@ -138,6 +152,11 @@
+   uint32 version;			/* For concurrent read/write */
+ 
+   MI_KEYSEG *seg,*end;
++#ifdef ENABLE_SENNA
++  int senna_flags;
++  int senna_initial_n_segments;
++  sen_index *senna;
++#endif /* ENABLE_SENNA */
+   int (*bin_search)(struct st_myisam_info *info,struct st_mi_keydef *keyinfo,
+ 		    uchar *page,uchar *key,
+ 		    uint key_len,uint comp_flag,uchar * *ret_pos,
+diff -Nurd mysql-4.0.27/include/myisammrg.h mysql-4.0.27.senna/include/myisammrg.h
+--- mysql-4.0.27/include/myisammrg.h	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/include/myisammrg.h	2007-02-06 17:26:43.000000000 +0900
+@@ -58,6 +58,9 @@
+ {
+   struct st_myisam_info *table;
+   ulonglong file_offset;
++#ifdef ENABLE_SENNA
++  sen_records *sir;
++#endif /* ENABLE_SENNA */
+ } MYRG_TABLE;
+ 
+ typedef struct st_myrg_info
+diff -Nurd mysql-4.0.27/libmysqld/ha_myisam.cc mysql-4.0.27.senna/libmysqld/ha_myisam.cc
+--- mysql-4.0.27/libmysqld/ha_myisam.cc	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/libmysqld/ha_myisam.cc	2007-02-06 17:26:43.000000000 +0900
+@@ -122,9 +122,61 @@
+ 
+ const char *ha_myisam::index_type(uint key_number)
+ {
+-  return ((table->key_info[key_number].flags & HA_FULLTEXT) ?
+-	  "FULLTEXT" :
+-	  "BTREE");
++  if (table->key_info[key_number].flags & HA_FULLTEXT)
++  {
++#ifdef ENABLE_SENNA
++    MYISAM_SHARE *share = file->s;
++    if (share->keyinfo[key_number].senna_flags & SEN_DISABLE_SENNA)
++    {
++      return "FULLTEXT";
++    }
++    else
++    {
++      if (share->keyinfo[key_number].senna_flags & SEN_INDEX_NORMALIZE)
++      {
++	if (share->keyinfo[key_number].senna_flags & SEN_INDEX_NGRAM)
++	{
++	  return "FULLTEXT,SENNA,NORMALIZE,NGRAM";
++	}
++	else
++	{
++	  if (share->keyinfo[key_number].senna_flags & SEN_INDEX_DELIMITED)
++	  {
++	    return "FULLTEXT,SENNA,NORMALIZE,DELIMITED";
++	  }
++	  else
++	  {
++	    return "FULLTEXT,SENNA,NORMALIZE";
++	  }
++	}
++      }
++      else 
++      {
++	if (share->keyinfo[key_number].senna_flags & SEN_INDEX_NGRAM)
++	{
++	  return "FULLTEXT,SENNA,NGRAM";
++	}
++	else
++	{
++	  if (share->keyinfo[key_number].senna_flags & SEN_INDEX_DELIMITED)
++	  {
++	    return "FULLTEXT,SENNA,DELIMITED";
++	  }
++	  else
++	  {
++	    return "FULLTEXT,SENNA";
++	  }
++	}
++      }
++    }
++#else /* ENABLE_SENNA */
++    return "FULLTEXT";
++#endif /* ENABLE_SENNA */
++  }
++  else
++  {
++    return "BTREE";
++  }
+ }
+ 
+ int ha_myisam::net_read_dump(NET* net)
+@@ -933,6 +985,14 @@
+     delete_length = info.delete_length;
+     check_time  = info.check_time;
+     mean_rec_length=info.mean_reclength;
++#ifdef ENABLE_SENNA
++    senna_keys_size = info.senna_keys_size;
++    senna_keys_file_size = info.senna_keys_file_size;
++    senna_lexicon_size = info.senna_lexicon_size;
++    senna_lexicon_file_size = info.senna_lexicon_file_size;
++    senna_inv_seg_size = info.senna_inv_seg_size;
++    senna_inv_chunk_size = info.senna_inv_chunk_size;
++#endif /* ENABLE_SENNA */
+   }
+   if (flag & HA_STATUS_CONST)
+   {
+@@ -1077,6 +1137,13 @@
+   for (i=0; i < table_arg->keys ; i++, pos++)
+   {
+     keydef[i].flag= (pos->flags & (HA_NOSAME | HA_FULLTEXT));
++#ifdef ENABLE_SENNA
++    if ((keydef[i].flag & HA_FULLTEXT) && info->key_info) {
++      keydef[i].senna_flags=info->key_info[i].senna_flags;
++      keydef[i].senna_initial_n_segments=info->key_info[i].senna_initial_n_segments;
++      sen_log("creating index (%s, flags=%x initial_n_segments=%d)",name,keydef[i].senna_flags,keydef[i].senna_initial_n_segments);
++    }
++#endif /* ENABLE_SENNA */
+     keydef[i].seg=keyseg;
+     keydef[i].keysegs=pos->key_parts;
+     for (j=0 ; j < pos->key_parts ; j++)
+diff -Nurd mysql-4.0.27/libmysqld/sql_db.cc mysql-4.0.27.senna/libmysqld/sql_db.cc
+--- mysql-4.0.27/libmysqld/sql_db.cc	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/libmysqld/sql_db.cc	2007-02-06 17:26:43.000000000 +0900
+@@ -252,6 +252,11 @@
+        (file->name[1] == '.' &&  !file->name[2])))
+       continue;
+ 
++#ifdef ENABLE_SENNA
++    /* senna files is skip */
++    /* ".SEN",".SEN.i",".SEN.i.c",".SEN.l", ".SEN.i.c.001",.. and so on */
++    if (strstr(file->name, ".SEN")) { continue; }
++#endif /* ENABLE_SENNA */
+     /* Check if file is a raid directory */
+     if ((isdigit(file->name[0]) ||
+ 	 (file->name[0] >= 'a' && file->name[0] <= 'f')) &&
+diff -Nurd mysql-4.0.27/libmysqld/sql_delete.cc mysql-4.0.27.senna/libmysqld/sql_delete.cc
+--- mysql-4.0.27/libmysqld/sql_delete.cc	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/libmysqld/sql_delete.cc	2007-02-06 17:26:43.000000000 +0900
+@@ -561,6 +561,9 @@
+     *table_ptr= table->next;			// Unlink table from list
+     close_temporary(table,0);
+     *fn_ext(path)=0;				// Remove the .frm extension
++#ifdef ENABLE_SENNA
++    create_info.key_info=table->key_info;
++#endif /* ENABLE_SENNA */
+     ha_create_table(path, &create_info,1);
+     // We don't need to call invalidate() because this table is not in cache
+     if ((error= (int) !(open_temporary_table(thd, path, table_list->db,
+diff -Nurd mysql-4.0.27/libmysqld/sql_show.cc mysql-4.0.27.senna/libmysqld/sql_show.cc
+--- mysql-4.0.27/libmysqld/sql_show.cc	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/libmysqld/sql_show.cc	2007-02-06 17:26:43.000000000 +0900
+@@ -27,6 +27,12 @@
+ #include "ha_berkeley.h"			// For berkeley_show_logs
+ #endif
+ 
++#ifdef ENABLE_SENNA
++#ifdef HAVE_ISAM
++#include "ha_myisam.h"			// For isam
++#endif
++#endif /* ENABLE_SENNA */
++
+ static const char *grant_names[]={
+   "select","insert","update","delete","create","drop","reload","shutdown",
+   "process","file","grant","references","index","alter"};
+@@ -296,6 +302,20 @@
+   item->maybe_null=1;
+   field_list.push_back(item=new Item_empty_string("Create_options",255));
+   item->maybe_null=1;
++#ifdef ENABLE_SENNA
++  field_list.push_back(item=new Item_int("Senna_key_size",(longlong) 1,21));
++  item->maybe_null=1;
++  field_list.push_back(item=new Item_int("Senna_key_file_size",(longlong) 1,21));
++  item->maybe_null=1;
++  field_list.push_back(item=new Item_int("Senna_lexicon_size",(longlong) 1,21));
++  item->maybe_null=1;
++  field_list.push_back(item=new Item_int("Senna_lexicon_file_size",(longlong) 1,21));
++  item->maybe_null=1;
++  field_list.push_back(item=new Item_int("Senna_inv_seg_size",(longlong) 1,21));
++  item->maybe_null=1;
++  field_list.push_back(item=new Item_int("Senna_inv_chunk_size",(longlong) 1,21));
++  item->maybe_null=1;
++#endif /* ENABLE_SENNA */
+   field_list.push_back(item=new Item_empty_string("Comment",80));
+   item->maybe_null=1;
+   if (send_fields(thd,field_list,1))
+@@ -411,6 +431,38 @@
+         net_store_data(packet, convert, option_buff+1,
+                        (ptr == option_buff ? 0 : (uint) (ptr-option_buff)-1));
+       }
++#ifdef ENABLE_SENNA
++      if (file->senna_keys_size >= 0) {
++	net_store_data(packet, (longlong) file->senna_keys_size);
++      } else {
++	net_store_null(packet);
++      }
++      if (file->senna_keys_file_size >= 0) {
++	net_store_data(packet, (longlong) file->senna_keys_file_size);
++      } else {
++	net_store_null(packet);
++      }
++      if (file->senna_lexicon_size >= 0) {
++	net_store_data(packet, (longlong) file->senna_lexicon_size);
++      } else {
++	net_store_null(packet);
++      }
++      if (file->senna_lexicon_file_size >= 0) {
++	net_store_data(packet, (longlong) file->senna_lexicon_file_size);
++      } else {
++	net_store_null(packet);
++      }
++      if (file->senna_inv_seg_size >= 0) {
++	net_store_data(packet, (longlong) file->senna_inv_seg_size);
++      } else {
++	net_store_null(packet);
++      }
++      if (file->senna_inv_chunk_size >= 0) {
++	net_store_data(packet, (longlong) file->senna_inv_chunk_size);
++      } else {
++	net_store_null(packet);
++      }
++#endif /* ENABLE_SENNA */
+       {
+ 	char *comment=table->file->update_table_comment(table->comment);
+ 	net_store_data(packet, comment);
+diff -Nurd mysql-4.0.27/libmysqld/sql_table.cc mysql-4.0.27.senna/libmysqld/sql_table.cc
+--- mysql-4.0.27/libmysqld/sql_table.cc	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/libmysqld/sql_table.cc	2007-02-06 17:26:43.000000000 +0900
+@@ -535,6 +535,9 @@
+   if (!key_info_buffer || ! key_part_info)
+     DBUG_RETURN(-1);				// Out of memory
+ 
++#ifdef ENABLE_SENNA
++  create_info->key_info=key_info_buffer;
++#endif /* ENABLE_SENNA */
+   key_iterator.rewind();
+   key_number=0;
+   for (; (key=key_iterator++) ; key_info++, key_number++)
+@@ -544,6 +547,15 @@
+ 
+     key_info->flags= (key->type == Key::MULTIPLE) ? 0 :
+                      (key->type == Key::FULLTEXT) ? HA_FULLTEXT : HA_NOSAME;
++#ifdef ENABLE_SENNA
++    key_info->senna_flags=(int)(0xffffffff & key->additional_type);
++    if (key_info->senna_flags & SEN_DISABLE_NORMALIZE) {
++      key_info->senna_flags &= ~SEN_INDEX_NORMALIZE;
++    } else {
++      key_info->senna_flags |= SEN_INDEX_NORMALIZE;
++    }
++    key_info->senna_initial_n_segments=(int)(key->additional_type >> 32);
++#endif /* ENABLE_SENNA */
+     key_info->key_parts=(uint8) key->columns.elements;
+     key_info->key_part=key_part_info;
+     key_info->usable_key_parts= key_number;
+@@ -1823,7 +1835,15 @@
+ 					    key_part_length));
+     }
+     if (key_parts.elements)
++    {
++#ifdef ENABLE_SENNA
++      key_list.push_back(new Key(key_type,key_name,key_parts,
++				 ((ulonglong)key_info->senna_initial_n_segments) << 32 +
++				 key_info->senna_flags));
++#else /* ENABLE_SENNA */
+       key_list.push_back(new Key(key_type,key_name,key_parts));
++#endif /* ENABLE_SENNA */
++    }
+   }
+   key_it.rewind();
+   {
+diff -Nurd mysql-4.0.27/myisam/Makefile.am mysql-4.0.27.senna/myisam/Makefile.am
+--- mysql-4.0.27/myisam/Makefile.am	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/myisam/Makefile.am	2007-02-06 17:26:43.000000000 +0900
+@@ -17,9 +17,9 @@
+ EXTRA_DIST =		mi_test_all.sh mi_test_all.res
+ pkgdata_DATA =		mi_test_all mi_test_all.res
+ 
+-INCLUDES =		@MT_INCLUDES@ -I$(srcdir)/../include -I../include
++INCLUDES =		@MT_INCLUDES@ -I$(srcdir)/../include -I../include @SENNA_INCLUDES@ @MECAB_INCLUDES@
+ LDADD =			@CLIENT_EXTRA_LDFLAGS@ libmyisam.a ../mysys/libmysys.a \
+-			../dbug/libdbug.a ../strings/libmystrings.a
++			../dbug/libdbug.a ../strings/libmystrings.a @SENNA_LIBS@ @MECAB_LIBS@
+ pkglib_LIBRARIES =	libmyisam.a
+ bin_PROGRAMS =		myisamchk myisamlog myisampack myisam_ftdump
+ myisamchk_DEPENDENCIES=	$(LIBRARIES)
+diff -Nurd mysql-4.0.27/myisam/ft_boolean_search.c mysql-4.0.27.senna/myisam/ft_boolean_search.c
+--- mysql-4.0.27/myisam/ft_boolean_search.c	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/myisam/ft_boolean_search.c	2007-02-08 16:19:06.000000000 +0900
+@@ -22,6 +22,11 @@
+ #include "ftdefs.h"
+ #include <queues.h>
+ 
++#ifdef ENABLE_SENNA
++#include <senna.h>
++#define SENNA_MAX_N_EXPR 32
++#endif /* ENABLE_SENNA */
++
+ /* search with boolean queries */
+ 
+ static double _wghts[11]=
+@@ -102,6 +107,9 @@
+   TREE       no_dupes;
+   FTB_WORD **list;
+   MEM_ROOT   mem_root;
++#ifdef ENABLE_SENNA
++  sen_records *sir;
++#endif /* ENABLE_SENNA */
+ } FTB;
+ 
+ static int FTB_WORD_cmp(my_off_t *v, FTB_WORD *a, FTB_WORD *b)
+@@ -320,6 +328,33 @@
+     info->s->keyinfo[keynr].seg->charset);
+   ftb->with_scan=0;
+   ftb->lastpos=HA_OFFSET_ERROR;
++#ifdef ENABLE_SENNA
++  if (ftb->info->s->keyinfo[ftb->keynr].senna)
++  {
++    sen_index *i;
++    sen_query *q;
++    sen_encoding e;
++    const char *rest;
++    unsigned int rest_len;
++    if (keynr==NO_SUCH_KEY ||
++        !(i = info->s->keyinfo[keynr].senna)) {
++      my_free((gptr)ftb,MYF(0));
++      return 0;
++    }
++    sen_index_info(i, NULL, NULL, NULL, &e, NULL, NULL, NULL, NULL, NULL, NULL);
++    if (!(q = sen_query_open(query, query_len, sen_sel_or, SENNA_MAX_N_EXPR, e))) {
++      my_free((gptr)ftb,MYF(0));
++      return 0;
++    }
++    if (rest_len = sen_query_rest(q, &rest)) {
++      sen_log("too long query. rest(%.*s) are ignored", rest_len, rest);
++    }
++    ftb->sir = sen_records_open(sen_rec_document, sen_rec_none, 0);
++    sen_query_exec(i, q, ftb->sir, sen_sel_or);
++    sen_query_close(q);
++    return ftb;
++  }
++#endif /* ENABLE_SENNA */
+   bzero(& ftb->no_dupes, sizeof(TREE));
+ 
+   init_alloc_root(&ftb->mem_root, 1024, 1024);
+@@ -470,6 +505,27 @@
+ 
+ int ft_boolean_read_next(FT_INFO *ftb, char *record)
+ {
++#ifdef ENABLE_SENNA
++  if (ftb->info->s->keyinfo[ftb->keynr].senna)
++  {
++    my_off_t pos;
++    MI_INFO   *info=ftb->info;
++    while (ftb->sir && sen_records_next(ftb->sir, &pos, sizeof(my_off_t), NULL)) {
++      info->update&= (HA_STATE_CHANGED | HA_STATE_ROW_CHANGED);
++      info->lastpos=pos;
++      if (!(*info->read_record)(info,info->lastpos,record)) {
++        info->update|= HA_STATE_AKTIV;          /* Record is read */
++        return 0;
++      }
++      sen_log("my_errno=%d pos=%lld in ft_boolean_read_next()", my_errno, pos);
++      if (my_errno == 127) { continue; }
++      return my_errno;
++    }
++    return HA_ERR_END_OF_FILE;
++  }
++  else
++#endif /* ENABLE_SENNA */
++ {
+   FTB_EXPR  *ftbe;
+   FTB_WORD  *ftbw;
+   MI_INFO   *info=ftb->info;
+@@ -568,11 +624,24 @@
+ err:
+   ftb->queue.first_cmp_arg=(void *)0;
+   return my_errno;
++ }
+ }
+ 
+ 
+ float ft_boolean_find_relevance(FT_INFO *ftb, byte *record, uint length)
+ {
++#ifdef ENABLE_SENNA
++  if (ftb->info->s->keyinfo[ftb->keynr].senna)
++  {
++    my_off_t  docid=ftb->info->lastpos;
++    if (!ftb->sir) { return 0.0; }
++    if (docid == HA_OFFSET_ERROR)
++      return -2.0;
++    return 1.0 * sen_records_find(ftb->sir, &docid);
++  }
++  else
++#endif /* ENABLE_SENNA */
++ {
+   FT_WORD word;
+   FTB_WORD *ftbw;
+   FTB_EXPR *ftbe;
+@@ -650,11 +719,20 @@
+   { /* match failed ! */
+     return 0.0;
+   }
++ }
+ }
+ 
+ 
+ void ft_boolean_close_search(FT_INFO *ftb)
+ {
++#ifdef ENABLE_SENNA
++  if (ftb->info->s->keyinfo[ftb->keynr].senna)
++  {
++    sen_records_close(ftb->sir);
++    my_free((gptr)ftb,MYF(0));
++    return;
++  }
++#endif /* ENABLE_SENNA */
+   if (is_tree_inited(& ftb->no_dupes))
+   {
+     delete_tree(& ftb->no_dupes);
+@@ -666,12 +744,26 @@
+ 
+ float ft_boolean_get_relevance(FT_INFO *ftb)
+ {
++#ifdef ENABLE_SENNA
++  if (ftb->info->s->keyinfo[ftb->keynr].senna)
++  {
++    if (!ftb->sir) { return 0.0; }
++    return 1.0 * sen_records_curr_score(ftb->sir);
++  }
++#endif /* ENABLE_SENNA */
+   return ftb->root->cur_weight;
+ }
+ 
+ 
+ void ft_boolean_reinit_search(FT_INFO *ftb)
+ {
++#ifdef ENABLE_SENNA
++  if (ftb->info->s->keyinfo[ftb->keynr].senna)
++  {
++    sen_records_rewind(ftb->sir);
++    return;
++  }
++#endif /* ENABLE_SENNA */
+   _ftb_init_index_search(ftb);
+ }
+ 
+diff -Nurd mysql-4.0.27/myisam/ft_nlq_search.c mysql-4.0.27.senna/myisam/ft_nlq_search.c
+--- mysql-4.0.27/myisam/ft_nlq_search.c	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/myisam/ft_nlq_search.c	2007-02-06 17:29:15.000000000 +0900
+@@ -33,6 +33,9 @@
+   MI_INFO  *info;
+   int       ndocs;
+   int       curdoc;
++#ifdef ENABLE_SENNA
++  sen_records *sir;
++#endif /* ENABLE_SENNA */
+   FT_DOC    doc[1];
+ };
+ 
+@@ -176,8 +179,23 @@
+   FT_DOC     *dptr;
+   FT_INFO    *dlist=NULL;
+   my_off_t    saved_lastpos=info->lastpos;
++#ifdef ENABLE_SENNA
++  sen_records *sir;
++#endif /* ENABLE_SENNA */
+   DBUG_ENTER("ft_init_nlq_search");
++#ifdef ENABLE_SENNA
++  if (info->s->keyinfo[keynr].senna)
++  {
++    // sen_log("ft_init_nlq_search(%p,%d,%p,%d,%d)", info, keynr, query, query_len, presort);
++    sir = sen_index_sel(info->s->keyinfo[keynr].senna, query, query_len);
+ 
++    // sen_log("sen_index_search done");
++  }
++  else
++  {
++    sir = NULL;
++  }
++#endif /* ENABLE_SENNA */
+ /* black magic ON */
+   if ((int) (keynr = _mi_check_index(info,keynr)) < 0)
+     DBUG_RETURN(NULL);
+@@ -221,6 +239,9 @@
+   dlist->info=aio.info;
+   dptr=dlist->doc;
+ 
++#ifdef ENABLE_SENNA
++  dlist->sir = sir;
++#endif /* ENABLE_SENNA */
+   tree_walk(&aio.dtree, (tree_walk_action) &walk_and_copy,
+ 	    &dptr, left_root_right);
+ 
+@@ -240,6 +261,27 @@
+ int ft_nlq_read_next(FT_INFO *handler, char *record)
+ {
+   MI_INFO *info= (MI_INFO *) handler->info;
++#ifdef ENABLE_SENNA
++  // sen_log("ft_nlq_read_next(%p,%p)", handler, record);
++  if (handler->sir)
++  {
++    my_off_t pos;
++    info->update&= (HA_STATE_CHANGED | HA_STATE_ROW_CHANGED);
++    while (sen_records_next(handler->sir, &pos, sizeof(my_off_t), NULL))
++    {
++      info->lastpos=pos;
++      if (!(*info->read_record)(info,info->lastpos,record))
++      {
++	info->update|= HA_STATE_AKTIV;		/* Record is read */
++	return 0;
++      }
++      sen_log("my_errno=%d pos=%lld in ft_nlq_read_next()", my_errno, pos);
++      if (my_errno == 127) { continue; }
++      return my_errno;
++    }
++    return HA_ERR_END_OF_FILE;
++  }
++#endif /* ENABLE_SENNA */
+ 
+   if (++handler->curdoc >= handler->ndocs)
+   {
+@@ -267,9 +309,19 @@
+   FT_DOC  *docs=handler->doc;
+   my_off_t docid=handler->info->lastpos;
+ 
++#ifdef ENABLE_SENNA
++  // sen_log("ft_nlq_find_relevance(docid=%d)", docid);
++#endif /* ENABLE_SENNA */
+   if (docid == HA_POS_ERROR)
+     return -5.0;
+ 
++#ifdef ENABLE_SENNA
++  if (handler->sir) {
++    // sen_log("score = %d", sen_records_find(handler->sir, &docid));
++    return 1.0 * sen_records_find(handler->sir, &docid);
++  }
++#endif /* ENABLE_SENNA */
++
+   /* Assuming docs[] is sorted by dpos... */
+ 
+   for (a=0, b=handler->ndocs, c=(a+b)/2; b-a>1; c=(a+b)/2)
+@@ -289,18 +341,45 @@
+ 
+ void ft_nlq_close_search(FT_INFO *handler)
+ {
++#ifdef ENABLE_SENNA
++  if (handler->sir)
++  {
++    sen_log("ft_nlq_close_search(%p)", handler);
++    sen_records_close(handler->sir);
++  }
++#endif /* ENABLE_SENNA */
+   my_free((gptr)handler,MYF(0));
+ }
+ 
+ 
+ float ft_nlq_get_relevance(FT_INFO *handler)
+ {
++#ifdef ENABLE_SENNA
++  // sen_log("ft_nlq_get_relevance(%p)", handler);
++
++  if (!handler->sir) {
++    if (handler->doc) {
++      return (float) handler->doc[handler->curdoc].weight;
++    }
++    return 0.0; 
++  }
++
++  return 1.0 * sen_records_curr_score(handler->sir);
++#else /* ENABLE_SENNA */
+   return (float) handler->doc[handler->curdoc].weight;
++#endif /* ENABLE_SENNA */
+ }
+ 
+ 
+ void ft_nlq_reinit_search(FT_INFO *handler)
+ {
++#ifdef ENABLE_SENNA
++  if (handler->sir)
++  {
++    sen_log("ft_nlq_reinit_search(%p)", handler);
++    sen_records_rewind(handler->sir);
++  }
++#endif /* ENABLE_SENNA */
+   handler->curdoc=-1;
+ }
+ 
+diff -Nurd mysql-4.0.27/myisam/ft_update.c mysql-4.0.27.senna/myisam/ft_update.c
+--- mysql-4.0.27/myisam/ft_update.c	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/myisam/ft_update.c	2007-02-06 17:39:45.000000000 +0900
+@@ -107,6 +107,19 @@
+ 			     byte *keybuf __attribute__((unused)),
+ 			     const byte *record)
+ {
++#ifdef ENABLE_SENNA
++  if (info->s->keyinfo[keynr].senna)
++  {
++    FT_WORD *wlist;
++    if (!(wlist = (FT_WORD *) my_malloc(sizeof(FT_WORD), MYF(0)))) {
++      return NULL;
++    }
++    wlist->pos = 0;
++    return wlist;
++  }
++  else
++#endif /* ENABLE_SENNA */
++ {
+   TREE ptree;
+ 
+   bzero((char*) &ptree, sizeof(ptree));
+@@ -114,6 +127,7 @@
+     return NULL;
+ 
+   return ft_linearize(/*info, keynr, keybuf, */ &ptree);
++ }
+ }
+ 
+ static int _mi_ft_store(MI_INFO *info, uint keynr, byte *keybuf,
+@@ -170,6 +184,119 @@
+   return GEE_THEY_ARE_ABSOLUTELY_IDENTICAL;
+ }
+ 
++#define SECTIONALIZE 0x00080000
++
++#ifdef ENABLE_SENNA
++int ft_sen_index_add(MI_INFO *info, uint keynr, const byte *record, my_off_t pos)
++{
++  if (info->s->keyinfo[keynr].senna_flags & SECTIONALIZE) {
++    FT_SEG_ITERATOR ftsi;
++    uint len = 0;
++    unsigned int section;
++    sen_values *values;
++    _mi_ft_segiterator_init(info, keynr, record, &ftsi);
++    while (_mi_ft_segiterator(&ftsi)) {
++      if (ftsi.pos) {
++	if (ftsi.len > 1048576) { sen_log("ft_sen_index_add: ftsi.len=%d", ftsi.len); }
++	if (ftsi.len > len) { len = ftsi.len; }
++      }
++    }
++    if (!len) { return -1; }
++    _mi_ft_segiterator_init(info, keynr, record, &ftsi);
++    section = 1;
++    while (_mi_ft_segiterator(&ftsi)) {
++      if (ftsi.pos) {
++	values = sen_values_open();
++	sen_values_add(values, ftsi.pos, ftsi.len, 0);
++	sen_index_update(info->s->keyinfo[keynr].senna, &pos, section, NULL, values);
++	sen_values_close(values);
++      }
++      section++;
++    }
++    return 0;
++  } else {
++    FT_SEG_ITERATOR ftsi;
++    char *buf, *p;
++    uint len = 0;
++    _mi_ft_segiterator_init(info, keynr, record, &ftsi);
++    while (_mi_ft_segiterator(&ftsi)) {
++      if (ftsi.pos) {
++	if (ftsi.len > 1048576) { sen_log("ft_sen_index_add: ftsi.len=%d", ftsi.len); }
++	len += ftsi.len + 1;
++      }
++    }
++    if (!len) { return -1; }
++    if (!(p = buf = malloc(len))) { return -1; }
++    _mi_ft_segiterator_init(info, keynr, record, &ftsi);
++    while (_mi_ft_segiterator(&ftsi)) {
++      if (ftsi.pos) {
++	if (p != buf) { *p++ = ' '; }
++	memcpy(p, ftsi.pos, ftsi.len);
++	p += ftsi.len;
++      }
++    }
++    sen_index_upd(info->s->keyinfo[keynr].senna, &pos, NULL, 0, buf, (p - buf));
++    free(buf);
++    return 0;
++  }
++}
++
++int ft_sen_index_del(MI_INFO *info, uint keynr, const byte *record, my_off_t pos)
++{
++  if (info->s->keyinfo[keynr].senna_flags & SECTIONALIZE) {
++    FT_SEG_ITERATOR ftsi;
++    char *buf;
++    uint len = 0;
++    unsigned int section;
++    sen_values *values;
++    _mi_ft_segiterator_init(info, keynr, record, &ftsi);
++    while (_mi_ft_segiterator(&ftsi)) {
++      if (ftsi.pos) {
++	if (ftsi.len > 1048576) { sen_log("ft_sen_index_del: ftsi.len=%d", ftsi.len); }
++	if (ftsi.len > len) { len = ftsi.len; }
++      }
++    }
++    if (!len) { return -1; }
++    if (!(buf = malloc(len + 1))) { return -1; }
++    _mi_ft_segiterator_init(info, keynr, record, &ftsi);
++    section = 1;
++    while (_mi_ft_segiterator(&ftsi)) {
++      if (ftsi.pos) {
++	values = sen_values_open();
++	sen_values_add(values, ftsi.pos, ftsi.len, 0);
++	sen_index_update(info->s->keyinfo[keynr].senna, &pos, section, values, NULL);
++	sen_values_close(values);
++      }
++      section++;
++    }
++    return 0;
++  } else {
++    FT_SEG_ITERATOR ftsi;
++    char *buf, *p;
++    uint len = 0;
++    _mi_ft_segiterator_init(info, keynr, record, &ftsi);
++    while (_mi_ft_segiterator(&ftsi)) {
++      if (ftsi.pos) {
++	if (ftsi.len > 1048576) { sen_log("ft_sen_index_del: ftsi.len=%d", ftsi.len); }
++	len += ftsi.len + 1;
++      }
++    }
++    if (!len) { return -1; }
++    if (!(p = buf = malloc(len))) { return -1; }
++    _mi_ft_segiterator_init(info, keynr, record, &ftsi);
++    while (_mi_ft_segiterator(&ftsi)) {
++      if (ftsi.pos) {
++	if (p != buf) { *p++ = ' '; }
++	memcpy(p, ftsi.pos, ftsi.len);
++	p += ftsi.len;
++      }
++    }
++    sen_index_upd(info->s->keyinfo[keynr].senna, &pos, buf, (p - buf), NULL, 0);
++    free(buf);
++    return 0;
++  }
++}
++#endif /* ENABLE_SENNA */
+ 
+ /* update a document entry */
+ 
+@@ -182,6 +309,14 @@
+   uint key_length;
+   int cmp, cmp2;
+ 
++#ifdef ENABLE_SENNA
++  if (info->s->keyinfo[keynr].senna)
++  {
++    // sen_log("_mi_ft_update(%p,%d,%p,%p,%p,%d)", info, keynr, keybuf, oldrec, newrec, pos);
++    ft_sen_index_del(info, keynr, oldrec, pos);
++    ft_sen_index_add(info, keynr, newrec, pos);
++  }
++#endif /* ENABLE_SENNA */
+   if (!(old_word=oldlist=_mi_ft_parserecord(info, keynr, keybuf, oldrec)))
+     goto err0;
+   if (!(new_word=newlist=_mi_ft_parserecord(info, keynr, keybuf, newrec)))
+@@ -231,6 +366,11 @@
+   int error= -1;
+   FT_WORD *wlist;
+ 
++#ifdef ENABLE_SENNA
++  // sen_log("_mi_ft_add(%p,%d,%p,%p,%d)", info, keynr, keybuf, record, pos);
++  if (info->s->keyinfo[keynr].senna)
++    ft_sen_index_add(info, keynr, record, pos);
++#endif /* ENABLE_SENNA */
+   if ((wlist=_mi_ft_parserecord(info, keynr, keybuf, record)))
+   {
+     error=_mi_ft_store(info,keynr,keybuf,wlist,pos);
+@@ -247,6 +387,11 @@
+ {
+   int error= -1;
+   FT_WORD *wlist;
++#ifdef ENABLE_SENNA
++  // sen_log("_mi_ft_del(%p,%d,%p,%p,%d)", info, keynr, keybuf, record, pos);
++  if (info->s->keyinfo[keynr].senna)
++    ft_sen_index_del(info, keynr, record, pos);
++#endif /* ENABLE_SENNA */
+   if ((wlist=_mi_ft_parserecord(info, keynr, keybuf, record)))
+   {
+     error=_mi_ft_erase(info,keynr,keybuf,wlist,pos);
+@@ -277,3 +422,32 @@
+ #endif /* EVAL_RUN */
+   return _mi_make_key(info,keynr,(uchar*) keybuf,buf,filepos);
+ }
++
++#ifdef ENABLE_SENNA
++void ft_index_truncate(MI_INFO *info)
++{
++  char buf[FN_REFLEN];
++  MYISAM_SHARE *share= info->s;
++  uint i, keys= (uint) share->state.header.keys;
++  for (i=0 ; i < keys ; i++)
++  {
++    if (share->keyinfo[i].flag & HA_FULLTEXT)
++    {
++      if (share->keyinfo[i].senna)
++      {
++	sen_index_close(share->keyinfo[i].senna);
++      }
++      strcpy(buf, share->unique_file_name);
++      sprintf(buf + strlen(buf) - 3, "%03d", i);
++      sen_log("create index (%s)", buf);
++      share->keyinfo[i].senna = 
++	(share->keyinfo[i].senna_flags & SEN_DISABLE_SENNA)
++	? NULL
++	: sen_index_create(buf, sizeof(my_off_t), 
++			   share->keyinfo[i].senna_flags,
++			   share->keyinfo[i].senna_initial_n_segments,
++			   sen_enc_default);
++    }
++  }
++}
++#endif /* ENABLE_SENNA */
+diff -Nurd mysql-4.0.27/myisam/fulltext.h mysql-4.0.27.senna/myisam/fulltext.h
+--- mysql-4.0.27/myisam/fulltext.h	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/myisam/fulltext.h	2007-02-06 17:26:43.000000000 +0900
+@@ -37,3 +37,6 @@
+ int  _mi_ft_cmp(MI_INFO *, uint, const byte *, const byte *);
+ int  _mi_ft_add(MI_INFO *, uint, byte *, const byte *, my_off_t);
+ int  _mi_ft_del(MI_INFO *, uint, byte *, const byte *, my_off_t);
++
++int ft_sen_index_add(MI_INFO *info, uint keynr, const byte *record, my_off_t pos);
++void ft_index_truncate(MI_INFO *info);
+diff -Nurd mysql-4.0.27/myisam/mi_check.c mysql-4.0.27.senna/myisam/mi_check.c
+--- mysql-4.0.27/myisam/mi_check.c	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/myisam/mi_check.c	2007-02-06 17:26:43.000000000 +0900
+@@ -1819,6 +1819,9 @@
+   ulonglong key_map=share->state.key_map;
+   DBUG_ENTER("mi_repair_by_sort");
+ 
++#ifdef ENABLE_SENNA
++  sen_log("mi_repair_by_sort");
++#endif /* ENABLE_SENNA */
+   start_records=info->state->records;
+   got_error=1;
+   new_file= -1;
+@@ -2598,6 +2601,10 @@
+       my_free((char*) wptr, MYF(MY_ALLOW_ZERO_PTR));
+       if ((error=sort_get_next_record(sort_param)))
+         DBUG_RETURN(error);
++#ifdef ENABLE_SENNA
++      if (info->s->keyinfo[sort_param->key].senna)
++	ft_sen_index_add(info, sort_param->key, sort_param->record, sort_param->filepos);
++#endif /* ENABLE_SENNA */
+       if (!(wptr=_mi_ft_parserecord(info,sort_param->key,
+                                      key,sort_param->record)))
+         DBUG_RETURN(1);
+diff -Nurd mysql-4.0.27/myisam/mi_close.c mysql-4.0.27.senna/myisam/mi_close.c
+--- mysql-4.0.27/myisam/mi_close.c	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/myisam/mi_close.c	2007-02-06 17:26:43.000000000 +0900
+@@ -31,6 +31,9 @@
+   DBUG_PRINT("enter",("base: %lx  reopen: %u  locks: %u",
+ 		      info,(uint) share->reopen, (uint) share->tot_locks));
+ 
++#ifdef ENABLE_SENNA
++  sen_log("closing index_file_name %s", share->index_file_name);
++#endif /* ENABLE_SENNA */
+   pthread_mutex_lock(&THR_LOCK_myisam);
+   if (info->lock_type == F_EXTRA_LCK)
+     info->lock_type=F_UNLCK;			/* HA_EXTRA_NO_USER_CHANGE */
+@@ -98,6 +101,29 @@
+       keys = share->state.header.keys;
+       for(i=0; i<keys; i++) {
+ 	VOID(rwlock_destroy(&share->key_root_lock[i]));
++
++#ifdef ENABLE_SENNA
++	if (share->keyinfo[i].flag & HA_FULLTEXT)
++	{
++	  sen_log("share->delay_key_write=%d", share->delay_key_write);
++	  sen_log("unique_file_name %s", share->unique_file_name);
++	  sen_log("data_file_name %s", share->data_file_name);
++	  sen_log("index_file_name %s", share->index_file_name);
++
++	  {
++	    char buf[FN_REFLEN];
++	    strncpy(buf, share->unique_file_name, FN_REFLEN - 1);
++	    buf[FN_REFLEN - 1] = '\0';
++	    sprintf(buf + strlen(buf) - 3, "%03d", i);
++	    sen_log("closing (%s)", buf);
++	    if (share->keyinfo[i].senna) {
++	      sen_index_close(share->keyinfo[i].senna);
++	    }
++	  }
++	}
++#endif /* ENABLE_SENNA */
++
++
+       }
+     }
+ #endif
+diff -Nurd mysql-4.0.27/myisam/mi_create.c mysql-4.0.27.senna/myisam/mi_create.c
+--- mysql-4.0.27/myisam/mi_create.c	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/myisam/mi_create.c	2007-02-06 17:26:43.000000000 +0900
+@@ -243,6 +243,42 @@
+ 
+     if (keydef->flag & HA_FULLTEXT)                                 /* SerG */
+     {
++#ifdef ENABLE_SENNA
++      sen_index *senna;
++      char buf[FN_REFLEN];
++      strncpy(buf, name, FN_REFLEN - 1);
++      buf[FN_REFLEN - 1] = '\0';
++      sprintf(buf + strlen(buf), ".%03d", i);
++      sen_log("keydef->senna_flags=%x", keydef->senna_flags);
++      if (!(keydef->senna_flags & SEN_DISABLE_SENNA))
++      {
++	/* make index files */
++	sen_log("create index (%s, flags=%x initial_n_segments=%d)", buf,
++		keydef->senna_flags, 
++		keydef->senna_initial_n_segments);
++	senna = sen_index_create(buf, sizeof(my_off_t),
++				 keydef->senna_flags,
++				 keydef->senna_initial_n_segments,
++				 sen_enc_default);
++	sen_index_close(senna);
++      } else {
++	senna = sen_index_open(buf);
++	if (senna) {
++	  int senna_flags, senna_initial_n_segments;
++	  sen_index_info(senna, NULL, &senna_flags, &senna_initial_n_segments,
++			 NULL, NULL, NULL, NULL, NULL, NULL, NULL);
++	  sen_index_close(senna);
++	  sen_index_remove(buf);
++	  sen_log("create index (%s, flags=%x initial_n_segments=%d)", buf,
++		  senna_flags, senna_initial_n_segments);
++	  senna = sen_index_create(buf, sizeof(my_off_t),
++				   senna_flags,
++				   senna_initial_n_segments,
++				   sen_enc_default);
++	  sen_index_close(senna);
++	}
++      }
++#endif /* ENABLE_SENNA */
+       keydef->flag=HA_FULLTEXT | HA_PACK_KEY | HA_VAR_LENGTH_KEY;
+       options|=HA_OPTION_PACK_KEYS;             /* Using packed keys */
+ 
+diff -Nurd mysql-4.0.27/myisam/mi_delete_all.c mysql-4.0.27.senna/myisam/mi_delete_all.c
+--- mysql-4.0.27/myisam/mi_delete_all.c	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/myisam/mi_delete_all.c	2007-02-06 17:26:43.000000000 +0900
+@@ -35,6 +35,24 @@
+   if (_mi_mark_file_changed(info))
+     goto err;
+ 
++#ifdef ENABLE_SENNA
++  for (i = 0; i < share->base.keys; i++) {
++    sen_index *senna = share->keyinfo[i].senna;
++    if (senna)
++    {
++      char buf[FN_REFLEN];
++      sen_index_path(senna, buf, FN_REFLEN);
++      sen_index_close(senna);
++      sen_index_remove(buf);
++      senna = sen_index_create(buf, sizeof(my_off_t),
++			       share->keyinfo[i].senna_flags,
++			       share->keyinfo[i].senna_initial_n_segments,
++			       sen_enc_default);
++      share->keyinfo[i].senna = senna;
++    }
++  }
++#endif /* ENABLE_SENNA */
++
+   info->state->records=info->state->del=state->split=0;
+   state->dellink = HA_OFFSET_ERROR;
+   state->sortkey=  (ushort) ~0;
+diff -Nurd mysql-4.0.27/myisam/mi_delete_table.c mysql-4.0.27.senna/myisam/mi_delete_table.c
+--- mysql-4.0.27/myisam/mi_delete_table.c	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/myisam/mi_delete_table.c	2007-02-06 17:26:43.000000000 +0900
+@@ -31,6 +31,9 @@
+ #endif
+   DBUG_ENTER("mi_delete_table");
+ 
++#ifdef ENABLE_SENNA
++  sen_log("mi_delete_table(%s)", name);
++#endif /* ENABLE_SENNA */
+ #ifdef EXTRA_DEBUG
+   check_table_is_closed(name,"delete");
+ #endif
+@@ -49,6 +52,15 @@
+ #endif
+ #endif /* USE_RAID */
+ 
++#ifdef ENABLE_SENNA
++  {
++    int i;
++    for (i = 0; i < 100; i++) {
++      my_snprintf(from, FN_REFLEN, "%s.%03d", name, i);
++      sen_index_remove(from);
++    }
++  }
++#endif /* ENABLE_SENNA */
+   fn_format(from,name,"",MI_NAME_IEXT,4);
+   if (my_delete_with_symlink(from, MYF(MY_WME)))
+     DBUG_RETURN(my_errno);
+diff -Nurd mysql-4.0.27/myisam/mi_info.c mysql-4.0.27.senna/myisam/mi_info.c
+--- mysql-4.0.27/myisam/mi_info.c	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/myisam/mi_info.c	2007-02-06 17:26:43.000000000 +0900
+@@ -61,6 +61,51 @@
+     x->mean_reclength	= info->state->records ?
+       (ulong) ((info->state->data_file_length-info->state->empty)/
+ 	       info->state->records) : (ulong) share->min_pack_length;
++#ifdef ENABLE_SENNA
++    if (share->keyinfo)
++    {
++      int i;
++
++      x->senna_keys_size = 0;
++      x->senna_keys_file_size = 0;
++      x->senna_lexicon_size = 0;
++      x->senna_lexicon_file_size = 0;
++      x->senna_inv_seg_size = 0;
++      x->senna_inv_chunk_size = 0;
++
++      for (i = 0; i < share->base.keys; i++)
++      {
++	sen_index *senna = share->keyinfo[i].senna;
++
++	if (senna)
++	{
++	  unsigned nrecords_keys, file_size_keys;
++	  unsigned nrecords_lexicon, file_size_lexicon;
++	  unsigned inv_seg_size, inv_chunk_size;
++
++	  sen_index_info(senna, NULL, &share->keyinfo[i].senna_flags,
++			 &share->keyinfo[i].senna_initial_n_segments, NULL, 
++			 &nrecords_keys, &file_size_keys, &nrecords_lexicon,
++			 &file_size_lexicon, &inv_seg_size, &inv_chunk_size);
++	  x->senna_keys_size += nrecords_keys;
++	  x->senna_keys_file_size += file_size_keys;
++	  x->senna_lexicon_size += nrecords_lexicon;
++	  x->senna_lexicon_file_size += file_size_lexicon;
++	  x->senna_inv_seg_size += inv_seg_size;
++	  x->senna_inv_chunk_size += inv_chunk_size;
++	}
++      }
++    }
++    else
++    {
++      x->senna_keys_file_size = -1;
++      x->senna_keys_size = -1;
++      x->senna_lexicon_file_size = -1;
++      x->senna_lexicon_size = -1;
++      x->senna_inv_seg_size = -1;
++      x->senna_inv_chunk_size = -1;
++    }
++#endif /* ENABLE_SENNA */
+   }
+   if (flag & HA_STATUS_ERRKEY)
+   {
+diff -Nurd mysql-4.0.27/myisam/mi_open.c mysql-4.0.27.senna/myisam/mi_open.c
+--- mysql-4.0.27/myisam/mi_open.c	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/myisam/mi_open.c	2007-02-06 17:26:43.000000000 +0900
+@@ -327,8 +327,35 @@
+ 	    }
+ 	  }
+ 	}
++#ifdef ENABLE_SENNA
++	share->keyinfo[i].senna = NULL;
++	share->keyinfo[i].senna_flags = 0;
++	share->keyinfo[i].senna_initial_n_segments = 0;
++#endif /* ENABLE_SENNA */
+ 	if (share->keyinfo[i].flag & HA_FULLTEXT)
+ 	{
++#ifdef ENABLE_SENNA
++	  if (!(share->keyinfo[i].senna_flags & SEN_DISABLE_SENNA))
++	  {
++	    sen_log("share->delay_key_write=%d", share->delay_key_write);
++	    sen_log("unique_file_name %s", share->unique_file_name);
++	    sen_log("data_file_name %s", share->data_file_name);
++	    sen_log("index_file_name %s", share->index_file_name);
++	    sen_log("share->keyinfo[%d].seg=%d", i, pos-FT_SEGS);
++	    {
++	      char buf[FN_REFLEN];
++	      strncpy(buf, share->unique_file_name, FN_REFLEN - 1);
++	      buf[FN_REFLEN - 1] = '\0';
++	      sprintf(buf + strlen(buf) - 3, "%03d", i);
++	      sen_log("open (%s)", buf);
++	      share->keyinfo[i].senna = sen_index_open(buf);
++	      sen_index_info(share->keyinfo[i].senna, NULL,
++			     &share->keyinfo[i].senna_flags,
++			     &share->keyinfo[i].senna_initial_n_segments,
++			     NULL, NULL, NULL, NULL, NULL, NULL, NULL);
++	    }
++	  }
++#endif /* ENABLE_SENNA */
+ 	  share->keyinfo[i].seg=pos-FT_SEGS;
+ 	  share->fulltext_index=1;
+ 	}
+diff -Nurd mysql-4.0.27/myisam/mi_rename.c mysql-4.0.27.senna/myisam/mi_rename.c
+--- mysql-4.0.27/myisam/mi_rename.c	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/myisam/mi_rename.c	2007-02-06 17:26:43.000000000 +0900
+@@ -49,6 +49,17 @@
+ #endif
+ #endif /* USE_RAID */
+ 
++#ifdef ENABLE_SENNA
++  sen_log("mi_rename(%s,%s)", old_name, new_name);
++  {
++    int i;
++    for (i = 0; i < 100; i++) {
++      my_snprintf(from, FN_REFLEN, "%s.%03d", old_name, i);
++      my_snprintf(to, FN_REFLEN, "%s.%03d", new_name, i);
++      sen_index_rename(from, to);
++    }
++  }
++#endif /* ENABLE_SENNA */
+   fn_format(from,old_name,"",MI_NAME_IEXT,4);
+   fn_format(to,new_name,"",MI_NAME_IEXT,4);
+   if (my_rename_with_symlink(from, to, MYF(MY_WME)))
+diff -Nurd mysql-4.0.27/myisam/myisam_ftdump.c mysql-4.0.27.senna/myisam/myisam_ftdump.c
+--- mysql-4.0.27/myisam/myisam_ftdump.c	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/myisam/myisam_ftdump.c	2007-02-06 17:26:43.000000000 +0900
+@@ -66,6 +66,9 @@
+   struct { MI_INFO *info; } aio0, *aio=&aio0; /* for GWS_IN_USE */
+ 
+   MY_INIT(argv[0]);
++#ifdef ENABLE_SENNA
++  sen_init();
++#endif /* ENABLE_SENNA */
+   if ((error= handle_options(&argc, &argv, my_long_options, get_one_option)))
+     exit(error);
+   if (count || dump)
+diff -Nurd mysql-4.0.27/myisam/myisamchk.c mysql-4.0.27.senna/myisam/myisamchk.c
+--- mysql-4.0.27/myisam/myisamchk.c	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/myisam/myisamchk.c	2007-02-06 17:26:43.000000000 +0900
+@@ -99,6 +99,9 @@
+   get_options(&argc,(char***) &argv);
+   myisam_quick_table_bits=decode_bits;
+   error=0;
++#ifdef ENABLE_SENNA
++  sen_init();
++#endif /* ENABLE_SENNA */
+   while (--argc >= 0)
+   {
+     int new_error=myisamchk(&check_param, *(argv++));
+@@ -939,6 +942,9 @@
+       }
+       if (!error)
+       {
++#ifdef ENABLE_SENNA
++	ft_index_truncate(info);
++#endif /* ENABLE_SENNA */
+ 	if ((param->testflag & (T_REP_BY_SORT | T_REP_PARALLEL)) &&
+ 	    (share->state.key_map ||
+ 	     (rep_quick && !param->keys_in_use && !recreate)) &&
+@@ -995,6 +1001,9 @@
+ 	  {
+ 	    if (param->verbose)
+ 	      puts("Table had a compressed index;  We must now recreate the index");
++#ifdef ENABLE_SENNA
++	    ft_index_truncate(info);
++#endif /* ENABLE_SENNA */
+ 	    error=mi_repair_by_sort(param,info,filename,1);
+ 	  }
+ 	}
+diff -Nurd mysql-4.0.27/myisam/myisamlog.c mysql-4.0.27.senna/myisam/myisamlog.c
+--- mysql-4.0.27/myisam/myisamlog.c	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/myisam/myisamlog.c	2007-02-06 17:26:43.000000000 +0900
+@@ -86,6 +86,9 @@
+   int error,i,first;
+   ulong total_count,total_error,total_recover;
+   MY_INIT(argv[0]);
++#ifdef ENABLE_SENNA
++  sen_init();
++#endif /* ENABLE_SENNA */
+ 
+   log_filename=myisam_log_filename;
+   get_options(&argc,&argv);
+diff -Nurd mysql-4.0.27/myisam/myisampack.c mysql-4.0.27.senna/myisam/myisampack.c
+--- mysql-4.0.27/myisam/myisampack.c	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/myisam/myisampack.c	2007-02-06 17:26:43.000000000 +0900
+@@ -194,6 +194,9 @@
+   PACK_MRG_INFO merge;
+   char **default_argv;
+   MY_INIT(argv[0]);
++#ifdef ENABLE_SENNA
++  sen_init();
++#endif /* ENABLE_SENNA */
+ 
+   load_defaults("my",load_default_groups,&argc,&argv);
+   default_argv= argv;
+diff -Nurd mysql-4.0.27/myisammrg/Makefile.am mysql-4.0.27.senna/myisammrg/Makefile.am
+--- mysql-4.0.27/myisammrg/Makefile.am	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/myisammrg/Makefile.am	2007-02-06 17:26:43.000000000 +0900
+@@ -14,14 +14,14 @@
+ # along with this program; if not, write to the Free Software
+ # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ 
+-INCLUDES =		@MT_INCLUDES@ -I$(srcdir)/../include -I../include
++INCLUDES =		@MT_INCLUDES@ -I$(srcdir)/../include -I../include @SENNA_INCLUDES@ @MECAB_INCLUDES@
+ pkglib_LIBRARIES =	libmyisammrg.a
+ noinst_HEADERS =	myrg_def.h
+ libmyisammrg_a_SOURCES = myrg_open.c myrg_extra.c myrg_info.c myrg_locking.c \
+ 			myrg_rrnd.c myrg_update.c myrg_delete.c myrg_rsame.c \
+ 			myrg_panic.c myrg_close.c myrg_create.c myrg_static.c \
+ 			myrg_rkey.c myrg_rfirst.c myrg_rlast.c myrg_rnext.c \
+-			myrg_rprev.c myrg_queue.c myrg_write.c myrg_range.c
++			myrg_rprev.c myrg_queue.c myrg_write.c myrg_range.c myrg_ft.c
+ 
+ # Don't update the files from bitkeeper
+ %::SCCS/s.%
+diff -Nurd mysql-4.0.27/myisammrg/myrg_ft.c mysql-4.0.27.senna/myisammrg/myrg_ft.c
+--- mysql-4.0.27/myisammrg/myrg_ft.c	1970-01-01 09:00:00.000000000 +0900
++++ mysql-4.0.27.senna/myisammrg/myrg_ft.c	2007-02-08 16:15:25.000000000 +0900
+@@ -0,0 +1,189 @@
++#include "myrg_def.h"
++#ifdef ENABLE_SENNA
++#define FT_CORE
++#include "ft_global.h"
++
++#define SENNA_MAX_N_EXPR 32
++
++struct st_ft_info
++{
++  struct _ft_vft *please;
++  MYRG_INFO *info;
++  sen_records_heap *rh;
++  int curr_score;
++};
++
++int myrg_ft_read_next(FT_INFO *fti, char *record)
++{
++  sen_records *r;
++  const sen_recordh *rh;
++  MYRG_TABLE *table;
++  MI_INFO *info;
++  my_off_t pos;
++  if (!(r=sen_records_heap_head(fti->rh)))
++  {
++    return HA_ERR_END_OF_FILE;
++  }
++  rh=sen_records_curr_rec(r);
++  sen_record_info(r, rh, &pos, sizeof(my_off_t), NULL, NULL, NULL, &fti->curr_score, NULL);
++  table=(MYRG_TABLE *)r->userdata;
++  fti->info->current_table=table;
++  info=table->table;
++  info->lastpos=pos;
++  sen_records_heap_next(fti->rh);
++  if (!(*info->read_record)(info,info->lastpos,record)) {
++    info->update|= HA_STATE_AKTIV;          /* Record is read */
++    return 0;
++  }
++  sen_log("my_errno=%d pos=%lld in myrg_ft_read_next()", my_errno, pos);
++  return my_errno;
++}
++
++float myrg_ft_find_relevance(FT_INFO *fti, byte *record, uint length)
++{
++  my_off_t pos;
++  MYRG_TABLE *table;
++  if (!(table=fti->info->current_table))
++    return -2.0;
++  pos=table->table->lastpos;
++  if (pos == HA_OFFSET_ERROR)
++    return -2.0;
++  return 1.0 * sen_records_find(table->sir, &pos);
++}
++
++void myrg_ft_close_search(FT_INFO *fti)
++{
++  sen_records_heap_close(fti->rh);
++  my_free((gptr)fti,MYF(0));
++}
++
++float myrg_ft_get_relevance(FT_INFO *fti)
++{
++  return 1.0 * fti->curr_score;
++}
++
++void myrg_ft_reinit_search(FT_INFO *fti)
++{
++  // must rewind be done?
++}
++
++const struct _ft_vft _myrg_ft_vft = {
++  myrg_ft_read_next, myrg_ft_find_relevance, myrg_ft_close_search,
++  myrg_ft_get_relevance,  myrg_ft_reinit_search
++};
++
++FT_INFO *myrg_ft_init_nlq_search(MYRG_INFO *info, uint keynr, byte *query,
++			    uint query_len, my_bool presort)
++{
++  FT_INFO    *fti=NULL;
++  MYRG_TABLE *table;
++  sen_records *r;
++  sen_records_heap *rh;
++
++  if (!(rh=sen_records_heap_open(info->tables, 0, NULL)))
++    goto exit;
++
++  for (table=info->open_tables ; table != info->end_table ; table++)
++  {
++    MI_INFO *mi=table->table;
++    sen_index *i=mi->s->keyinfo[keynr].senna;
++    if (i)
++    {
++      if ((r=sen_index_sel(i, query, query_len)))
++      {
++	r->userdata=(void *)table;
++	table->sir=r;
++	sen_records_heap_add(rh, r);
++      }
++    }
++  }
++
++  if(!(fti=(FT_INFO *)my_malloc(sizeof(FT_INFO), MYF(MY_WME))))
++  {
++    sen_records_heap_close(rh);
++    goto exit;
++  }
++
++  fti->please=(struct _ft_vft *) &_myrg_ft_vft;
++  fti->info=info;
++  fti->rh=rh;
++
++exit:
++  return fti;
++}
++
++FT_INFO *myrg_ft_init_boolean_search(MYRG_INFO *info, uint keynr, byte *query,
++				 uint query_len, my_bool presort)
++{
++  FT_INFO    *fti=NULL;
++  MYRG_TABLE *table;
++  sen_query *q=NULL;
++  sen_records_heap *rh;
++
++  if (!(rh=sen_records_heap_open(info->tables, 0, NULL)))
++    goto exit;
++
++  for (table=info->open_tables ; table != info->end_table ; table++)
++  {
++    MI_INFO *mi=table->table;
++    sen_index *i=mi->s->keyinfo[keynr].senna;
++    if (i)
++    {
++      sen_records *r;
++      if (!q)
++      {
++	sen_encoding e;
++	const char *rest;
++	unsigned int *rest_len;
++	sen_index_info(i, NULL, NULL, NULL, &e, NULL, NULL, NULL, NULL, NULL, NULL);
++	if (!(q=sen_query_open(query, query_len, sen_sel_or, SENNA_MAX_N_EXPR, e)))
++	{
++	  sen_records_heap_close(rh);
++	  goto exit;
++	}
++	if (rest_len = sen_query_rest(q, &rest))
++	{
++	  sen_log("too long query. rest(%.*s) are ignored", rest_len, rest);
++	}
++      }
++      if (!(r=sen_records_open(sen_rec_document, sen_rec_none, 0)))
++      {
++	sen_records_heap_close(rh);
++	goto exit;
++      }
++      r->userdata=(void *)table;
++      table->sir=r;
++      sen_query_exec(i, q, r, sen_sel_or);
++      sen_records_heap_add(rh, r);
++    }
++  }
++
++  if(!(fti=(FT_INFO *)my_malloc(sizeof(FT_INFO), MYF(MY_WME))))
++  {
++    sen_records_heap_close(rh);
++    goto exit;
++  }
++
++  fti->please=(struct _ft_vft *) &_myrg_ft_vft;
++  fti->info=info;
++  fti->rh=rh;
++
++exit:
++  if (q)
++  {
++    sen_query_close(q);
++  }
++  return fti;
++}
++
++FT_INFO *(*_myrg_ft_init_vft[2])(MYRG_INFO *, uint, byte *, uint, my_bool) =
++{ myrg_ft_init_nlq_search, myrg_ft_init_boolean_search };
++
++FT_INFO *myrg_ft_init_search(uint mode, void *info, uint keynr,
++    byte *query, uint query_len, my_bool presort)
++{
++  return (*_myrg_ft_init_vft[mode])((MYRG_INFO *)info, keynr,
++          query, query_len, presort);
++}
++
++#endif /* ENABLE_SENNA */
+diff -Nurd mysql-4.0.27/sql/Makefile.am mysql-4.0.27.senna/sql/Makefile.am
+--- mysql-4.0.27/sql/Makefile.am	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/sql/Makefile.am	2007-02-06 17:26:43.000000000 +0900
+@@ -24,7 +24,8 @@
+ 			@bdb_includes@ @innodb_includes@ \
+ 			-I$(srcdir)/../include \
+ 			-I$(srcdir)/../regex \
+-			-I$(srcdir) -I../include -I. $(openssl_includes)
++			-I$(srcdir) -I../include -I. $(openssl_includes) \
++			@SENNA_INCLUDES@ @MECAB_INCLUDES@
+ WRAPLIBS=		@WRAPLIBS@
+ SUBDIRS =		share
+ libexec_PROGRAMS =	mysqld
+@@ -43,7 +44,8 @@
+ mysqld_LDADD =		@MYSQLD_EXTRA_LDFLAGS@ \
+ 			@bdb_libs@ @innodb_libs@ @pstack_libs@ \
+                         @innodb_system_libs@ \
+-			$(LDADD)  $(CXXLDFLAGS) $(WRAPLIBS) @LIBDL@ @openssl_libs@
++			$(LDADD)  $(CXXLDFLAGS) $(WRAPLIBS) @LIBDL@ @openssl_libs@ \
++			@SENNA_LIBS@ @MECAB_LIBS@
+ noinst_HEADERS =	item.h item_func.h item_sum.h item_cmpfunc.h \
+ 			item_strfunc.h item_timefunc.h item_uniq.h \
+ 			item_create.h mysql_priv.h \
+diff -Nurd mysql-4.0.27/sql/gen_lex_hash.cc mysql-4.0.27.senna/sql/gen_lex_hash.cc
+--- mysql-4.0.27/sql/gen_lex_hash.cc	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/sql/gen_lex_hash.cc	2007-02-06 17:26:43.000000000 +0900
+@@ -469,7 +469,7 @@
+   int error;
+ 
+   MY_INIT(argv[0]);
+-  start_value=2925024L; best_t1=654916L;  best_t2=1723390L;  best_type=3; /* mode=4943  add=1  type: 0 */
++  start_value=7356286L; best_t1=3684640L;  best_t2=177529L;  best_type=3; /* mode=7741  add=3  type: 0 */
+   if (get_options(argc,(char **) argv))
+     exit(1);
+ 
+diff -Nurd mysql-4.0.27/sql/ha_myisam.cc mysql-4.0.27.senna/sql/ha_myisam.cc
+--- mysql-4.0.27/sql/ha_myisam.cc	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/sql/ha_myisam.cc	2007-02-06 17:26:43.000000000 +0900
+@@ -122,9 +122,61 @@
+ 
+ const char *ha_myisam::index_type(uint key_number)
+ {
+-  return ((table->key_info[key_number].flags & HA_FULLTEXT) ?
+-	  "FULLTEXT" :
+-	  "BTREE");
++  if (table->key_info[key_number].flags & HA_FULLTEXT)
++  {
++#ifdef ENABLE_SENNA
++    MYISAM_SHARE *share = file->s;
++    if (share->keyinfo[key_number].senna_flags & SEN_DISABLE_SENNA)
++    {
++      return "FULLTEXT";
++    }
++    else
++    {
++      if (share->keyinfo[key_number].senna_flags & SEN_INDEX_NORMALIZE)
++      {
++	if (share->keyinfo[key_number].senna_flags & SEN_INDEX_NGRAM)
++	{
++	  return "FULLTEXT,SENNA,NORMALIZE,NGRAM";
++	}
++	else
++	{
++	  if (share->keyinfo[key_number].senna_flags & SEN_INDEX_DELIMITED)
++	  {
++	    return "FULLTEXT,SENNA,NORMALIZE,DELIMITED";
++	  }
++	  else
++	  {
++	    return "FULLTEXT,SENNA,NORMALIZE";
++	  }
++	}
++      }
++      else 
++      {
++	if (share->keyinfo[key_number].senna_flags & SEN_INDEX_NGRAM)
++	{
++	  return "FULLTEXT,SENNA,NGRAM";
++	}
++	else
++	{
++	  if (share->keyinfo[key_number].senna_flags & SEN_INDEX_DELIMITED)
++	  {
++	    return "FULLTEXT,SENNA,DELIMITED";
++	  }
++	  else
++	  {
++	    return "FULLTEXT,SENNA";
++	  }
++	}
++      }
++    }
++#else /* ENABLE_SENNA */
++    return "FULLTEXT";
++#endif /* ENABLE_SENNA */
++  }
++  else
++  {
++    return "BTREE";
++  }
+ }
+ 
+ int ha_myisam::net_read_dump(NET* net)
+@@ -933,6 +985,14 @@
+     delete_length = info.delete_length;
+     check_time  = info.check_time;
+     mean_rec_length=info.mean_reclength;
++#ifdef ENABLE_SENNA
++    senna_keys_size = info.senna_keys_size;
++    senna_keys_file_size = info.senna_keys_file_size;
++    senna_lexicon_size = info.senna_lexicon_size;
++    senna_lexicon_file_size = info.senna_lexicon_file_size;
++    senna_inv_seg_size = info.senna_inv_seg_size;
++    senna_inv_chunk_size = info.senna_inv_chunk_size;
++#endif /* ENABLE_SENNA */
+   }
+   if (flag & HA_STATUS_CONST)
+   {
+@@ -1077,6 +1137,18 @@
+   for (i=0; i < table_arg->keys ; i++, pos++)
+   {
+     keydef[i].flag= (pos->flags & (HA_NOSAME | HA_FULLTEXT));
++#ifdef ENABLE_SENNA
++    if ((keydef[i].flag & HA_FULLTEXT)) {
++      if (info->key_info) {
++	keydef[i].senna_flags=info->key_info[i].senna_flags;
++	keydef[i].senna_initial_n_segments=info->key_info[i].senna_initial_n_segments;
++	sen_log("creating index (%s, flags=%x initial_n_segments=%d)",name,keydef[i].senna_flags,keydef[i].senna_initial_n_segments);
++      } else {
++	keydef[i].senna_flags=SEN_DISABLE_SENNA;
++	keydef[i].senna_initial_n_segments=0;
++      }
++    }
++#endif /* ENABLE_SENNA */
+     keydef[i].seg=keyseg;
+     keydef[i].keysegs=pos->key_parts;
+     for (j=0 ; j < pos->key_parts ; j++)
+diff -Nurd mysql-4.0.27/sql/ha_myisammrg.cc mysql-4.0.27.senna/sql/ha_myisammrg.cc
+--- mysql-4.0.27/sql/ha_myisammrg.cc	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/sql/ha_myisammrg.cc	2007-02-06 17:26:43.000000000 +0900
+@@ -397,3 +397,20 @@
+   }
+   packet->append(')');
+ }
++
++#ifdef ENABLE_SENNA
++int ha_myisammrg::ft_read(byte * buf)
++{
++  int error;
++
++  if (!ft_handler)
++    return -1;
++
++  thread_safe_increment(ha_read_next_count,&LOCK_status); // why ?
++
++  error=ft_handler->please->read_next(ft_handler,(char*) buf);
++
++  table->status=error ? STATUS_NOT_FOUND: 0;
++  return error;
++}
++#endif /* ENABLE_SENNA */
+diff -Nurd mysql-4.0.27/sql/ha_myisammrg.h mysql-4.0.27.senna/sql/ha_myisammrg.h
+--- mysql-4.0.27/sql/ha_myisammrg.h	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/sql/ha_myisammrg.h	2007-02-06 17:26:43.000000000 +0900
+@@ -36,7 +36,11 @@
+   {
+     return (HA_REC_NOT_IN_SEQ | HA_READ_RND_SAME | HA_AUTO_PART_KEY |
+ 	    HA_KEYPOS_TO_RNDPOS | HA_LASTKEY_ORDER |
+-	    HA_NULL_KEY | HA_BLOB_KEY | HA_FILE_BASED);
++	    HA_NULL_KEY | HA_BLOB_KEY | HA_FILE_BASED
++#ifdef ENABLE_SENNA
++	    | HA_CAN_FULLTEXT
++#endif /* ENABLE_SENNA */
++	    );
+   }
+   ulong index_flags(uint inx) const
+   {
+@@ -66,6 +70,20 @@
+   int index_prev(byte * buf);
+   int index_first(byte * buf);
+   int index_last(byte * buf);
++#ifdef ENABLE_SENNA
++  int index_end() { ft_handler=NULL; return 0; }
++  int ft_init()
++  {
++    if (!ft_handler)
++      return 1;
++    ft_handler->please->reinit_search(ft_handler);
++    return 0;
++  }
++  FT_INFO *ft_init_ext(uint mode, uint inx,const byte *key, uint keylen,
++		       bool presort)
++  { return myrg_ft_init_search(mode, file,inx,(byte*) key,keylen,presort); }
++  int ft_read(byte *buf);
++#endif /* ENABLE_SENNA */
+   int rnd_init(bool scan=1);
+   int rnd_next(byte *buf);
+   int rnd_pos(byte * buf, byte *pos);
+diff -Nurd mysql-4.0.27/sql/handler.h mysql-4.0.27.senna/sql/handler.h
+--- mysql-4.0.27/sql/handler.h	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/sql/handler.h	2007-02-06 17:26:43.000000000 +0900
+@@ -169,6 +169,9 @@
+   uint raid_type,raid_chunks;
+   uint merge_insert_method;
+   bool table_existed;			/* 1 in create if table existed */
++#ifdef ENABLE_SENNA
++  KEY *key_info;
++#endif /* ENABLE_SENNA */
+ } HA_CREATE_INFO;
+ 
+ 
+@@ -216,6 +219,14 @@
+   FT_INFO *ft_handler;
+   bool  auto_increment_column_changed;
+   bool implicit_emptied;                /* Can be !=0 only if HEAP */
++#ifdef ENABLE_SENNA
++  longlong senna_keys_size;
++  longlong senna_keys_file_size;
++  longlong senna_lexicon_size;
++  longlong senna_lexicon_file_size;
++  longlong senna_inv_seg_size;
++  longlong senna_inv_chunk_size;
++#endif /* ENABLE_SENNA */
+ 
+   handler(TABLE *table_arg) :table(table_arg),
+     ref(0), data_file_length(0), max_data_file_length(0), index_file_length(0),
+@@ -225,6 +236,11 @@
+     key_used_on_scan(MAX_KEY), active_index(MAX_REF_PARTS),
+     ref_length(sizeof(my_off_t)), block_size(0),
+     raid_type(0), ft_handler(0), implicit_emptied(0)
++#ifdef ENABLE_SENNA
++    , senna_keys_size((longlong)-1), senna_keys_file_size((longlong)-1)
++    , senna_lexicon_size((longlong)-1), senna_lexicon_file_size((longlong)-1)
++	, senna_inv_seg_size((longlong)-1), senna_inv_chunk_size((longlong)-1)
++#endif /* ENABLE_SENNA */
+     {}
+   virtual ~handler(void) {}
+   int ha_open(const char *name, int mode, int test_if_locked);
+diff -Nurd mysql-4.0.27/sql/lex.h mysql-4.0.27.senna/sql/lex.h
+--- mysql-4.0.27/sql/lex.h	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/sql/lex.h	2007-02-06 17:26:43.000000000 +0900
+@@ -313,6 +313,10 @@
+   { "SAVEPOINT",	SYM(SAVEPOINT_SYM),0,0},
+   { "SECOND",		SYM(SECOND_SYM),0,0},
+   { "SELECT",		SYM(SELECT_SYM),0,0},
++  { "SENNA",		SYM(SENNA_SYM),0,0},
++  { "NORMALIZE",	SYM(SENNA_NORMALIZE_SYM),0,0},
++  { "NGRAM",		SYM(SENNA_NGRAM_SYM),0,0},
++  { "DELIMITED",	SYM(SENNA_DELIMITED_SYM),0,0},
+   { "SERIALIZABLE",	SYM(SERIALIZABLE_SYM),0,0},
+   { "SESSION",		SYM(SESSION_SYM),0,0},
+   { "SET",		SYM(SET),0,0},
+diff -Nurd mysql-4.0.27/sql/mysqld.cc mysql-4.0.27.senna/sql/mysqld.cc
+--- mysql-4.0.27/sql/mysqld.cc	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/sql/mysqld.cc	2007-02-06 17:26:43.000000000 +0900
+@@ -2443,6 +2443,9 @@
+ #ifdef USE_REGEX
+   regex_init();
+ #endif
++#ifdef ENABLE_SENNA
++  sen_init();
++#endif /* ENABLE_SENNA */
+   select_thread=pthread_self();
+   select_thread_in_use=1;
+   if (use_temp_pool && bitmap_init(&temp_pool,1024,1))
+diff -Nurd mysql-4.0.27/sql/sql_class.h mysql-4.0.27.senna/sql/sql_class.h
+--- mysql-4.0.27/sql/sql_class.h	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/sql/sql_class.h	2007-02-06 17:26:43.000000000 +0900
+@@ -242,9 +242,17 @@
+   enum ha_key_alg algorithm;
+   List<key_part_spec> columns;
+   const char *Name;
++#ifdef ENABLE_SENNA
++  ulonglong additional_type;
++#endif /* ENABLE_SENNA */
+ 
++#ifdef ENABLE_SENNA
++  Key(enum Keytype type_par,const char *name_arg,List<key_part_spec> &cols,ulonglong a_type = 0)
++    :type(type_par), algorithm(HA_KEY_ALG_UNDEF), columns(cols), Name(name_arg), additional_type(a_type)
++#else /* ENABLE_SENNA */
+   Key(enum Keytype type_par,const char *name_arg,List<key_part_spec> &cols)
+     :type(type_par), algorithm(HA_KEY_ALG_UNDEF), columns(cols), Name(name_arg)
++#endif /* ENABLE_SENNA */
+   {}
+   ~Key() {}
+   const char *name() { return Name; }
+diff -Nurd mysql-4.0.27/sql/sql_db.cc mysql-4.0.27.senna/sql/sql_db.cc
+--- mysql-4.0.27/sql/sql_db.cc	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/sql/sql_db.cc	2007-02-06 17:26:43.000000000 +0900
+@@ -252,6 +252,11 @@
+        (file->name[1] == '.' &&  !file->name[2])))
+       continue;
+ 
++#ifdef ENABLE_SENNA
++    /* senna files is skip */
++    /* ".SEN",".SEN.i",".SEN.i.c",".SEN.l", ".SEN.i.c.001",.. and so on */
++    if (strstr(file->name, ".SEN")) { continue; }
++#endif /* ENABLE_SENNA */
+     /* Check if file is a raid directory */
+     if ((isdigit(file->name[0]) ||
+ 	 (file->name[0] >= 'a' && file->name[0] <= 'f')) &&
+diff -Nurd mysql-4.0.27/sql/sql_delete.cc mysql-4.0.27.senna/sql/sql_delete.cc
+--- mysql-4.0.27/sql/sql_delete.cc	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/sql/sql_delete.cc	2007-02-06 17:26:43.000000000 +0900
+@@ -561,6 +561,9 @@
+     *table_ptr= table->next;			// Unlink table from list
+     close_temporary(table,0);
+     *fn_ext(path)=0;				// Remove the .frm extension
++#ifdef ENABLE_SENNA
++    create_info.key_info=table->key_info;
++#endif /* ENABLE_SENNA */
+     ha_create_table(path, &create_info,1);
+     // We don't need to call invalidate() because this table is not in cache
+     if ((error= (int) !(open_temporary_table(thd, path, table_list->db,
+diff -Nurd mysql-4.0.27/sql/sql_show.cc mysql-4.0.27.senna/sql/sql_show.cc
+--- mysql-4.0.27/sql/sql_show.cc	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/sql/sql_show.cc	2007-02-06 17:26:43.000000000 +0900
+@@ -27,6 +27,12 @@
+ #include "ha_berkeley.h"			// For berkeley_show_logs
+ #endif
+ 
++#ifdef ENABLE_SENNA
++#ifdef HAVE_ISAM
++#include "ha_myisam.h"			// For isam
++#endif
++#endif /* ENABLE_SENNA */
++
+ static const char *grant_names[]={
+   "select","insert","update","delete","create","drop","reload","shutdown",
+   "process","file","grant","references","index","alter"};
+@@ -296,6 +302,20 @@
+   item->maybe_null=1;
+   field_list.push_back(item=new Item_empty_string("Create_options",255));
+   item->maybe_null=1;
++#ifdef ENABLE_SENNA
++  field_list.push_back(item=new Item_int("Senna_key_size",(longlong) 1,21));
++  item->maybe_null=1;
++  field_list.push_back(item=new Item_int("Senna_key_file_size",(longlong) 1,21));
++  item->maybe_null=1;
++  field_list.push_back(item=new Item_int("Senna_lexicon_size",(longlong) 1,21));
++  item->maybe_null=1;
++  field_list.push_back(item=new Item_int("Senna_lexicon_file_size",(longlong) 1,21));
++  item->maybe_null=1;
++  field_list.push_back(item=new Item_int("Senna_inv_seg_size",(longlong) 1,21));
++  item->maybe_null=1;
++  field_list.push_back(item=new Item_int("Senna_inv_chunk_size",(longlong) 1,21));
++  item->maybe_null=1;
++#endif /* ENABLE_SENNA */
+   field_list.push_back(item=new Item_empty_string("Comment",80));
+   item->maybe_null=1;
+   if (send_fields(thd,field_list,1))
+@@ -411,6 +431,38 @@
+         net_store_data(packet, convert, option_buff+1,
+                        (ptr == option_buff ? 0 : (uint) (ptr-option_buff)-1));
+       }
++#ifdef ENABLE_SENNA
++      if (file->senna_keys_size >= 0) {
++	net_store_data(packet, (longlong) file->senna_keys_size);
++      } else {
++	net_store_null(packet);
++      }
++      if (file->senna_keys_file_size >= 0) {
++	net_store_data(packet, (longlong) file->senna_keys_file_size);
++      } else {
++	net_store_null(packet);
++      }
++      if (file->senna_lexicon_size >= 0) {
++	net_store_data(packet, (longlong) file->senna_lexicon_size);
++      } else {
++	net_store_null(packet);
++      }
++      if (file->senna_lexicon_file_size >= 0) {
++	net_store_data(packet, (longlong) file->senna_lexicon_file_size);
++      } else {
++	net_store_null(packet);
++      }
++      if (file->senna_inv_seg_size >= 0) {
++	net_store_data(packet, (longlong) file->senna_inv_seg_size);
++      } else {
++	net_store_null(packet);
++      }
++      if (file->senna_inv_chunk_size >= 0) {
++	net_store_data(packet, (longlong) file->senna_inv_chunk_size);
++      } else {
++	net_store_null(packet);
++      }
++#endif /* ENABLE_SENNA */
+       {
+ 	char *comment=table->file->update_table_comment(table->comment);
+ 	net_store_data(packet, comment);
+diff -Nurd mysql-4.0.27/sql/sql_table.cc mysql-4.0.27.senna/sql/sql_table.cc
+--- mysql-4.0.27/sql/sql_table.cc	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/sql/sql_table.cc	2007-02-06 17:26:43.000000000 +0900
+@@ -535,6 +535,9 @@
+   if (!key_info_buffer || ! key_part_info)
+     DBUG_RETURN(-1);				// Out of memory
+ 
++#ifdef ENABLE_SENNA
++  create_info->key_info=key_info_buffer;
++#endif /* ENABLE_SENNA */
+   key_iterator.rewind();
+   key_number=0;
+   for (; (key=key_iterator++) ; key_info++, key_number++)
+@@ -544,6 +547,15 @@
+ 
+     key_info->flags= (key->type == Key::MULTIPLE) ? 0 :
+                      (key->type == Key::FULLTEXT) ? HA_FULLTEXT : HA_NOSAME;
++#ifdef ENABLE_SENNA
++    key_info->senna_flags=(int)(0xffffffff & key->additional_type);
++    if (key_info->senna_flags & SEN_DISABLE_NORMALIZE) {
++      key_info->senna_flags &= ~SEN_INDEX_NORMALIZE;
++    } else {
++      key_info->senna_flags |= SEN_INDEX_NORMALIZE;
++    }
++    key_info->senna_initial_n_segments=(int)(key->additional_type >> 32);
++#endif /* ENABLE_SENNA */
+     key_info->key_parts=(uint8) key->columns.elements;
+     key_info->key_part=key_part_info;
+     key_info->usable_key_parts= key_number;
+@@ -1823,7 +1835,15 @@
+ 					    key_part_length));
+     }
+     if (key_parts.elements)
++    {
++#ifdef ENABLE_SENNA
++      key_list.push_back(new Key(key_type,key_name,key_parts,
++				 ((ulonglong)key_info->senna_initial_n_segments) << 32 +
++				 key_info->senna_flags));
++#else /* ENABLE_SENNA */
+       key_list.push_back(new Key(key_type,key_name,key_parts));
++#endif /* ENABLE_SENNA */
++    }
+   }
+   key_it.rewind();
+   {
+diff -Nurd mysql-4.0.27/sql/sql_yacc.yy mysql-4.0.27.senna/sql/sql_yacc.yy
+--- mysql-4.0.27/sql/sql_yacc.yy	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/sql/sql_yacc.yy	2007-02-06 17:26:43.000000000 +0900
+@@ -306,6 +306,10 @@
+ %token	ROWS_SYM
+ %token	ROW_FORMAT_SYM
+ %token	ROW_SYM
++%token	SENNA_DELIMITED_SYM
++%token	SENNA_NGRAM_SYM
++%token	SENNA_NORMALIZE_SYM
++%token	SENNA_SYM
+ %token	SET
+ %token	SERIALIZABLE_SYM
+ %token	SESSION_SYM
+@@ -519,7 +523,7 @@
+ 	ULONG_NUM raid_types merge_insert_types
+ 
+ %type <ulonglong_number>
+-	ulonglong_num
++	ulonglong_num opt_key_alg opt_key_alg_list opt_key_alg_item
+ 
+ %type <lock_type>
+ 	replace_lock_option opt_low_priority insert_lock_option load_data_lock
+@@ -762,11 +766,11 @@
+ 	}
+ 	create2
+ 	  {Lex->select= &Lex->select_lex;}
+-	| CREATE opt_unique_or_fulltext INDEX ident ON table_ident
++	| CREATE opt_unique_or_fulltext INDEX ident opt_key_alg ON table_ident
+ 	  {
+ 	    LEX *lex=Lex;
+ 	    lex->sql_command= SQLCOM_CREATE_INDEX;
+-	    if (!add_table_to_list($6, NULL, TL_OPTION_UPDATING))
++	    if (!add_table_to_list($7, NULL, TL_OPTION_UPDATING))
+ 	      YYABORT;
+ 	    lex->create_list.empty();
+ 	    lex->key_list.empty();
+@@ -776,7 +780,11 @@
+ 	  '(' key_list ')'
+ 	  {
+ 	    LEX *lex=Lex;
++#ifdef ENABLE_SENNA
++	    lex->key_list.push_back(new Key($2,$4.str,lex->col_list,$5));
++#else /* ENABLE_SENNA */
+ 	    lex->key_list.push_back(new Key($2,$4.str,lex->col_list));
++#endif /* ENABLE_SENNA */
+ 	    lex->col_list.empty();
+ 	  }
+ 	| CREATE DATABASE opt_if_not_exists ident
+@@ -953,10 +961,14 @@
+         ;
+ 
+ key_def:
+-	  key_type opt_ident '(' key_list ')'
++	  key_type opt_ident opt_key_alg '(' key_list ')'
+ 	  {
+ 	    LEX *lex=Lex;
++#ifdef ENABLE_SENNA
++	    lex->key_list.push_back(new Key($1,$2,lex->col_list, $3));
++#else /* ENABLE_SENNA */
+ 	    lex->key_list.push_back(new Key($1,$2,lex->col_list));
++#endif /* ENABLE_SENNA */
+ 	    lex->col_list.empty();		/* Alloced by sql_alloc */
+ 	  }
+ 	| opt_constraint FOREIGN KEY_SYM opt_ident '(' key_list ')' references
+@@ -973,6 +985,40 @@
+ 	  }
+ 	;
+ 
++opt_key_alg:
++	/* empty */ { $$= 0; }
++	| TYPE_SYM opt_key_alg_list { $$=$2; }
++	| USING opt_key_alg_list { $$=$2; };
++
++opt_key_alg_list:
++	opt_key_alg_item { $$= $1; }
++	| opt_key_alg_item ',' opt_key_alg_list { $$= $1 | $3; };
++
++opt_key_alg_item:
++	SENNA_SYM { $$=0; }
++	| NO_SYM SENNA_SYM {
++#ifdef ENABLE_SENNA
++	    $$=SEN_DISABLE_SENNA;
++#endif /* ENABLE_SENNA */
++          }
++	| SENNA_NORMALIZE_SYM { $$=0; }
++	| NO_SYM SENNA_NORMALIZE_SYM {
++#ifdef ENABLE_SENNA
++	    $$=SEN_DISABLE_NORMALIZE;
++#endif /* ENABLE_SENNA */
++          }
++	| SENNA_DELIMITED_SYM {
++#ifdef ENABLE_SENNA
++	    $$=SEN_INDEX_DELIMITED;
++#endif /* ENABLE_SENNA */
++	  }
++	| SENNA_NGRAM_SYM {
++#ifdef ENABLE_SENNA
++	    $$=SEN_INDEX_NGRAM;
++#endif /* ENABLE_SENNA */
++	  }
++	| ULONG_NUM { $1 < 65536 ? $$=((ulonglong)$1) << 32 : $$=$1; };
++
+ opt_check_constraint:
+ 	/* empty */
+ 	| check_constraint
+@@ -3437,6 +3483,10 @@
+ 	| ROW_SYM		{}
+ 	| SAVEPOINT_SYM		{}
+ 	| SECOND_SYM		{}
++	| SENNA_DELIMITED_SYM	{}
++	| SENNA_NGRAM_SYM	{}
++	| SENNA_NORMALIZE_SYM	{}
++	| SENNA_SYM		{}
+ 	| SERIALIZABLE_SYM	{}
+ 	| SESSION_SYM		{}
+ 	| SIGNED_SYM		{}
+diff -Nurd mysql-4.0.27/sql/structs.h mysql-4.0.27.senna/sql/structs.h
+--- mysql-4.0.27/sql/structs.h	2007-02-06 19:32:10.000000000 +0900
++++ mysql-4.0.27.senna/sql/structs.h	2007-02-06 17:26:43.000000000 +0900
+@@ -74,6 +74,10 @@
+   union {
+     int  bdb_return_if_eq;
+   } handler;
++#ifdef ENABLE_SENNA
++  int senna_flags;
++  int senna_initial_n_segments;
++#endif /* ENABLE_SENNA */
+ } KEY;
+ 
+ 

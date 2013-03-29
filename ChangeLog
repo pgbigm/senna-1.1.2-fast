@@ -1,0 +1,371 @@
+2008-03-10  Tasuku SUENAGA <a at razil.jp>
+
+	* Added shutdown function to sennaql
+	* Bug fixed: cannot build php bindings
+	* Modified timeout value of sen_com_event_poll in senna.c
+	* bug fixed: sen_query_scan fails with a query like 'word1 +word2'
+	* Enhanced slot_value_ra.
+	* CAUTION!! format of sen_store has been changed from this revision. and
+	it's not compatible.
+	* Exported sen_str_charlen.
+	* Fixed a bug in sen_records_next.
+	* Fixed a problem in sen_ja, accessing a record which exists across file
+	boundaries.
+	* Added ::defrag method to sen_ja_slot.
+	* Added :normalize option to ptable function.
+	* Fixed a bug in compar_expr.
+	* Added ::get-ddl
+	* default open/close tag are copied on sen_snip_open with SEN_SNIP_COPY_TAG
+	flags
+	* added sen_str_normalize
+	* Added ::schema method.
+	* When 0 is assigned as limit value of ::sort and ::disp method, it's
+	regarded as nrecords.
+	* compare functions (<, =, >, <=, >=) supports more than 2 values.
+	* Added substrb function.
+	* Added sen_sym_scan.
+	* removed strptime for windows
+	* Modified sen_fin. output alloc_count.
+	* Fix a bug in nf_records
+	* Added sen_sel_near2
+	* Fixed a memory leak bug in disp, nf_records.
+	* Added flags SEN_SKIP_LEADING_SPACES for sen_snip_open.
+
+2008-02-07  Tasuku SUENAGA <a at razil.jp>
+
+	* Made sen_ql_eval GC safe.
+	* Fixed a bug in nf_class::sort. time value comaprison was wrong.
+	* Fitted ruby binding in new sen_index_info signature.
+	* changed libsenna to senna in spec file
+	* enabled warnings about inline
+	* Modified sen_ja to use sen_io_win_map.
+	* Modified the signature of an API sen_index_info.
+	* Modified the behavior of sen_query. Leading expressions with '-' operator are ignored.
+	* Fixed a bug in clearlock.
+	* Fixed bug in sen_timeval2str().
+	* sen_snip_exec allow zero length string.
+	* fixed bug: cannot handle "c" properlly if snippet condition made from query "a -(b) c" by sen_query_snip
+	* Enhanced snip.
+	* Fixed a problem causing segv when illegal snip cond asigned.
+	* added quasiquote test on test/ql/quasiquote.scm
+	* changed listp -> pairp
+	* Fixed a bug in quasiquote.
+	* Added SEN_SNIP_COPY_TAG.
+	* Fixed a bug in sen_timeval.
+	* Fixed a bug in sen_ql_eval which cause segv when evaluated code raise error.
+	* Added (class ::clearlock).
+	* Added iterator to <db>.
+	* Made snip_cond gc free.
+	* Fixed a bug in <time> operation.
+	* Enhanced snip in sennaql.
+	* change strtime format.
+	* Added x->time
+	* Enhanced error handling in ruby binding.
+	* Fixed some bugs about list operation.
+	* Added CALLBACK.
+	* added __stdcall for thread functions on Windows
+	* Fixed a bug in sen_timeval.
+	* Added THREAD_CREATE.
+	* Added bogus COND_SIGNAL.
+
+2008-01-22  Tasuku SUENAGA <a at razil.jp>
+
+	* Enabled sen_inv_seg_expire().
+	* added error handler.
+	* fixed a buffer overflow bug on sen_snip_exec
+	* Fixed API documentation bugs.
+	* Enhanced SEN_INDEX_SHARED_LEXICON mode.
+	* Enhanced SEN_INDEX_SHARED_LEXICON. entries in a lexicon is actually deleted when pocket value == 0.
+	* Enhanced SEN_INDEX_SHARED_LEXICON. ignore sen_sym_del when (sym->flags & SEN_SYM_WITH_SIS).
+	* show warning message when sen_sym_del invoked to sen_sym with SEN_SYM_WITH_SIS
+	* sen_nstr_open now accepts empty string
+	* Fixed a bug which cause deadlock in SEN_IO_SEG_MAP.
+	* Enhanced sen_set algorithm.
+	* Fixed a bug in index.c: after sorted, sen_records rewind when sen_records_next invoked.
+	* Fixed a bug in ql.c: disp function had output empty packet in paticular situation.
+	* Fixed two bugs which cause segv.  1. sen_sym_get 2. sen_set_close
+	* removed waste comparison on snip.c
+	* Enhanced error handling.
+	* Enhanced buffer_flush. it doesn't corrupt the inv index even if array_at failed.
+	* Enhanced buffer_flush. directy calculate pos_ value using tp.
+	* Fixed a problem about sen_index_similar_search.
+	* Added sen_index_expire() which expires unsed memory when memory allocation failed.
+	* fixed bug of sennachk buffer over writing on senchk_filelist
+	* fixed bug on initializing snip_cond after released
+	* removed discarded tests
+	* Modified sen_realloc. use free() instead of realloc when size == 0.
+	* added stress test tool
+	* make sennachk only unlock inv files when --unlock options specified
+	* invalid nstr->checks stored when a handakuon/dakuon of a half-width kana are normalized
+	* deleted a unused variable on normalize_utf8
+	* Added SEN_INV_MAX_TF.
+	* Added regression test about SEN_INV_MAX_TF.
+	* change a type of nstr->checks from int8_least_t to int16_t for string given to sen_nstr_open which contains many spaces
+	* "senna.conf" file become obsolete.
+	* fixed double free problems on memory allocation failed for members of structs
+	* Fixed a bug in sen_query_term().
+	* Applied fail-malloc patch!
+	* Modified library dependency.
+	* Commented out swig
+	* Added sen_inv_max_section.
+	* added escape string \ on query expression
+	* added new error codes. - sen_internal_error - sen_external_error - sen_abnormal_error
+
+2007-09-26  Tasuku SUENAGA  <a at razil.jp>
+
+	* changed mode parameter of sen_io_win_map() only in WIN32 environment. sen_io_win_map no longer call mmap.
+	* fixed a bug in inv.c: when inv_cursor_open() and inv_update() run simultanously in a same process, nref info sommtimes corrupted and cause deadlock.
+	* appeared sen_query_snip
+	* fixed an incorrect test about n_subrecs.
+	* fixed bug: error count is not initialized on sennachk
+	* fixed a bug in sen_index_select(), returning duplicate records, when multi-section used.
+
+2007-08-01  Tasuku SUENAGA  <a at razil.jp>
+
+	* enhanced autogen.sh
+	* sen_query_scan appeared
+	* bug fix: now configure option --without-nfkc works
+
+2007-05-29  Tasuku SUENAGA  <a at razil.jp>
+
+	* compile well on FreeBSD/Windows/Mac OS X
+	* refined configure.ac
+
+2007-05-22  Tasuku SUENAGA  <a at razil.jp>
+
+	* modified configure.ac. mecab-config check is executed only when mecab is required.
+	* fixed a bug: configure fails if mecab.h doesn't exist on a search path for include
+	* replace isspace into sen_isspace in lex.c
+	* added force_prefix
+	* modified test suites for supporting force_prefix
+	* fixed a bug in sen_set_get. when reuse a entry from garabages, value was not zero-cleared.
+	* null check in sen_inv_close
+	* sennachk appeared
+
+2007-04-27  Tasuku SUENAGA  <a at razil.jp>
+
+	* added more described instructions about sen_index_select
+	* fixed problem in snippet udf when realloc fails
+	* get rid of strlen call in query.c
+	* added sen_index_create_with_keys_lexicon
+	* merged the multisection-query branch
+	* fixed bug about configure options gotten from sen_info
+	* added lines for gcov/lcov and ruby binding and deleted waste lines on files for autotools
+	* now you can specify path of mecab-config
+	* now you can specify default parameters on configure time
+	* get not linker options but a link path on configure.ac
+	* added configure options on Windows environment
+	* call read_conf() in sen_info()
+	* made ruby bindings call sen_fin() at exit
+	* fixed a bug in sen_sym_next
+	* fixed ctype which is wrong on sen_enc_utf8
+	* added sen_sel_prefix and sen_sel_suffix to sen_sel_mode
+	* made compiler options of gcc show more detailed warnings
+
+2007-04-02  Tasuku SUENAGA  <a at razil.jp>
+
+	* add -c option (consistency check) to itest
+	* fixed a bug in inv.c: deleteing records with score corrupt index
+	* fixed bug buffer over read on snippet function
+	* fixed a bug in sen_set_reset. garbages was not cleared when gc.
+	* kick out UINT_MAX
+	* itest -u option added. u is for unlock
+
+2007-03-20  Tasuku SUENAGA  <a at razil.jp>
+
+	* fixed stack over run in sen_io_open
+	* fixed bugs in test suite on 32bit environment
+	* stack smashing bug fixed
+	* delete mysql bindings for version 5.0
+
+2007-03-14  Tasuku SUENAGA  <a at razil.jp>
+
+	* fixed bugs: delete strlen function of which argument is non-null terminated string on index.c
+	* compile sym08 on windows
+	* moved pat_node declarations to top of the blocks in sym.c
+	* updated mysql bindings for new versions
+	* modified mysql bindings
+	* fixed a bug in sen_set_str_get()
+	* added sen_info API
+	* fixed prototype declaration of sen_info on senna.h
+	* fse added
+	* fixed mysql bindings bug on alter/create/drop index
+	* set CONFIGURE_OPTION on windows
+
+2007-02-28  Tasuku SUENAGA  <a at razil.jp>
+
+	* fix a bug which cause segfault when sen_query_exec() run
+	* sen_inv_estimate_size(): fixed estimation for size.
+
+2007-02-22  Tasuku SUENAGA  <a at razil.jp>
+
+	* version 1.0.0
+	* compile inv08 in windows
+	* fixed some bugs in snippet functions
+	* fix multi section bug
+	* fixed a bug in sen_sym_del_with_sis()
+	* fixed a bug in sen_inv_update()
+	* added regression test for ruby bindings
+	* fixed bug about sen_sym_info in ruby binding
+	* added some constants and methods in ruby binding
+	* fixed bug in Sym::info method(ruby binding)
+	* added sen_sym test in ruby bindings
+	* sen_sym file format modified
+	* sen_sym file format refined
+	* make senna able to handle non-null-terminated strings
+	* kickout waste copy on mysql bindings
+	* added str_len to sen_values
+	* modify stest for new sen_nstr
+	* changed signature of sen_query_rest API
+	* added sen_query_term API
+	* size_t -> unsigned
+	* include string.h on tests
+	* deleted null check of string with length
+	* changed mysql bindings because of sen_query_rest API
+	* changed ruby bindings because of sen_query_rest API
+	* modified qtest to use a correct argument type for sen_query_rest
+	* itest supports new (1.0 type) index format
+	* fill zero in surplus area in index.
+	* fixed a bug: ngram-index corrput after rev295
+	* modified api document (japanese)
+	* modified api document (english)
+	* 64bit based index is now compatible with 32bit based index.
+	* get rid of unused routines from sym.c
+
+2006-12-29  Tasuku SUENAGA  <a at razil.jp>
+
+	* version 0.9.0
+	* change the default format of indices. From now, new format will be default.
+	* changed the format of indices.
+	* sen_io: moved io.nref into index file.
+	* change signatures of functions to handle non-null-terminated strings
+	* move ainfo, binfo arrays into sen_inv_header
+	* sen_sym: key area become sharable and slightly space-efficient.
+	* fixed bugs in checking first byte of characters encoded with shift_jis
+	* changed the format of invered index file.
+	* format errno with strerror when mmap failed.
+	* changed format string used for formatting total size of mmaped memory from %d to %z
+	* fixed sign of a argument for isspace
+
+2006-10-20  Tasuku SUENAGA  <a at razil.jp>
+
+	* version 0.8.2
+	* sen_sym bug fixed
+	* replace AC_FUNC_MALLOC/REALLOC to AC_CHECK_FUNCS for the environments
+	  without glibc.
+	* fix key size in a test suite of ruby bindings.
+	* fixed bug that sen_index_lock remains persistently
+	* fixed bug in normalize_utf8(). when sen_select_optarg.weight_vector == NULL
+	  and sen_select_optarg.vector_size > 0, it works as sen_wv_constant.
+	* made a keyword not tagged which gets accross the end bound of a snippet
+	* fixed absence of 'touch sql/sql_yacc.yy' in install documents.
+
+2006-09-12  Tasuku SUENAGA  <a at razil.jp>
+
+	* version 0.8.1
+	* implement expiring caches.
+	* inverted index is broken in environment where uintptr_t is not 32bit.
+	* support latin1 and koi8r.
+	* records.curr_rec was broken when sen_records_find() invoked.
+	* CREATE INDEX handles parameters properly.
+	* remove dependency on pkg.m4.
+	* fix misc bugs.
+
+2006-06-27  Tasuku Suenaga  <a at razil.jp>
+
+	* sen_index_info() enhanced (applied patch from <koizumi at gree.co.jp>)
+
+2006-04-05  Poe MORITA  <morita at razil.jp>
+
+	* snip.c bug fixed (applied patch from <ko at yappo.ne.jp>)
+
+2006-03-08  Poe MORITA  <morita at razil.jp>
+
+	* query.c added (for boolean search)
+
+2006-02-16  Poe MORITA  <morita at razil.jp>
+
+	* io.c bug fixed. index format has modified.
+
+2006-02-13  Poe MORITA  <morita at razil.jp>
+
+	* AIO/DIO based cache from Takuo Kitame <kitame at valinux. co. jp>
+	* --enable-aio, --enable-gatomic, --enable-nfkc, --with-mecab option added
+
+2006-01-12  Poe MORITA  <morita at razil.jp>
+
+	* windows porting released
+
+2005-12-22  Poe MORITA  <morita at razil.jp>
+
+	* support unpatched version of mecab (0.81, 0.82pre, 0.90)
+	  no longer depends on mecab mte patch.
+
+2005-12-14  Poe MORITA  <morita at razil.jp>
+
+	* windows porting (alpha version)
+
+2005-11-17  Poe MORITA  <morita at razil.jp>
+
+	* set.c modified which depended on particular structure alignment
+	* change the delimiter of column value to '\n' in mysql binding
+
+2005-11-14  Poe MORITA  <morita at razil.jp>
+
+	* API changed (keys are deep copied)
+	* garabages in symbol tables are collected
+	* sen_index_sel escalated unsplit, then partial
+
+2005-10-28  Poe MORITA  <morita at razil.jp>
+
+	* myisamchk bug fixed
+
+2005-10-27  Poe MORITA  <morita at razil.jp>
+
+	* mysql binding updated
+	* myisamchk supported
+	* sen_index_sel query escalation supports sen_sel_unsplit
+
+2005-09-17  Poe MORITA  <morita at razil.jp>
+
+	* mysql-5.0.12-beta binding from <tasuku at hottolink.co.jp>
+
+2005-09-17  Poe MORITA  <morita at razil.jp>
+
+	* Ruby binding memory leak fixed by <phuna at users.sourceforge.net>
+
+2005-09-08  Poe MORITA  <morita at razil.jp>
+
+	* utf-8 support enhanced. (SEN_INDEX_NORMALIZE become available)
+
+2005-08-16  Poe MORITA  <morita at razil.jp>
+
+	* SJIS support enhanced. (SEN_INDEX_NORMALIZE become available)
+
+2005-08-16  Poe MORITA  <morita at razil.jp>
+
+	* advanced API revised
+	* Ruby binding has rewrited using SWIG and supports advanced API.
+
+2005-07-05  Poe MORITA  <morita at razil.jp>
+
+	* the license has changed to LGPL from GPL.
+	* all of advanced API function implemented
+	* sen_skipmode_set patch applied to mysql binding
+
+2005-06-23  Poe MORITA  <morita at razil.jp>
+
+	* advanced API functions implemented
+
+2005-04-12  Poe MORITA  <morita at razil.jp>
+
+	* applied ftb patch for mysql binding from <ko at yappo.ne.jp>
+	'IN BOOLEAN MODE' supported
+
+2005-04-07  Poe MORITA  <morita at razil.jp>
+
+	* applied darwin patch from <oyama at module.jp>
+	working on Mac OS X 10.3.8.
+
+	* mysql binding updated by <ko at yappo.ne.jp>
+	working on MySQL 4.0.23, 4.0.24

@@ -1,0 +1,394 @@
+diff -Nurd mysql-4.0.27.senna.2ind/libmysqld/item_create.cc mysql-4.0.27.senna.2ind.skipmode/libmysqld/item_create.cc
+--- mysql-4.0.27.senna.2ind/libmysqld/item_create.cc	2006-05-07 03:55:47.000000000 +0900
++++ mysql-4.0.27.senna.2ind.skipmode/libmysqld/item_create.cc	2006-08-17 09:27:58.000000000 +0900
+@@ -456,3 +456,10 @@
+ {
+   return new Item_func_quote(a);
+ }
++
++#ifdef ENABLE_SENNA
++Item *create_func_sen_skipmode_set(Item* a)
++{
++  return new Item_func_sen_skipmode_set(a);
++}
++#endif /* ENABLE_SENNA */
+diff -Nurd mysql-4.0.27.senna.2ind/libmysqld/item_func.cc mysql-4.0.27.senna.2ind.skipmode/libmysqld/item_func.cc
+--- mysql-4.0.27.senna.2ind/libmysqld/item_func.cc	2006-08-17 09:19:48.000000000 +0900
++++ mysql-4.0.27.senna.2ind.skipmode/libmysqld/item_func.cc	2006-08-17 09:27:58.000000000 +0900
+@@ -2488,3 +2488,24 @@
+     return 1;
+   return 0;
+ }
++
++#ifdef ENABLE_SENNA
++#include <pthread.h>
++extern "C" { 
++extern pthread_key_t THR_SEN_skipmode; 
++}
++longlong Item_func_sen_skipmode_set::val_int()
++{
++  longlong arg1= (longlong) args[0]->val_int();
++  long *skipmode;
++#ifdef THREAD
++  skipmode = (long *) pthread_getspecific(THR_SEN_skipmode);
++  if (!skipmode) {
++    skipmode = (long *) calloc(1, sizeof(long));
++    pthread_setspecific(THR_SEN_skipmode, skipmode);
++  }
++  *skipmode = arg1;
++#endif
++  return (longlong) arg1;
++}
++#endif /* ENABLE_SENNA */
+diff -Nurd mysql-4.0.27.senna.2ind/libmysqld/sql_select.cc mysql-4.0.27.senna.2ind.skipmode/libmysqld/sql_select.cc
+--- mysql-4.0.27.senna.2ind/libmysqld/sql_select.cc	2006-08-17 09:23:49.000000000 +0900
++++ mysql-4.0.27.senna.2ind.skipmode/libmysqld/sql_select.cc	2006-08-17 09:27:58.000000000 +0900
+@@ -195,6 +195,16 @@
+   return res;
+ }
+ 
++#ifdef ENABLE_SENNA
++#include <pthread.h>
++extern "C" { 
++//#include <my_pthread.h>
++//extern pthread_key(long, THR_SEN_select_limit);
++//extern pthread_key(long, THR_SEN_offset_limit);
++extern pthread_key_t THR_SEN_select_limit;
++extern pthread_key_t THR_SEN_offset_limit;
++}
++#endif /* ENABLE_SENNA */
+ 
+ /*****************************************************************************
+   Check fields, find best join, do the select and output fields.
+@@ -252,6 +262,25 @@
+   thd->used_tables=0;				// Updated by setup_fields
+   /* select_limit is used to decide if we are likely to scan the whole table */
+   select_limit= thd->select_limit;
++#ifdef ENABLE_SENNA
++#ifdef THREAD
++{
++  long *tmp = (long *) pthread_getspecific(THR_SEN_offset_limit);
++  if (!tmp) {
++    tmp = (long *) calloc(1, sizeof(long));
++    pthread_setspecific(THR_SEN_offset_limit, tmp);
++  }
++  *tmp = thd->offset_limit;
++
++  tmp = (long *) pthread_getspecific(THR_SEN_select_limit);
++  if (!tmp) {
++    tmp = (long *) calloc(1, sizeof(long));
++    pthread_setspecific(THR_SEN_select_limit, tmp);
++  }
++  *tmp = thd->select_limit;
++}
++#endif
++#endif /* ENABLE_SENNA */
+   if (having || (select_options & OPTION_FOUND_ROWS))
+     select_limit= HA_POS_ERROR;
+ 
+diff -Nurd mysql-4.0.27.senna.2ind/myisam/ft_boolean_search.c mysql-4.0.27.senna.2ind.skipmode/myisam/ft_boolean_search.c
+--- mysql-4.0.27.senna.2ind/myisam/ft_boolean_search.c	2006-08-17 09:19:48.000000000 +0900
++++ mysql-4.0.27.senna.2ind.skipmode/myisam/ft_boolean_search.c	2006-08-17 09:27:58.000000000 +0900
+@@ -25,6 +25,14 @@
+ #ifdef ENABLE_SENNA
+ #include <senna.h>
+ #define SENNA_MAX_N_EXPR 32
++
++#ifdef THREAD
++extern pthread_key(long, THR_SEN_nhit);
++extern pthread_key(long, THR_SEN_skipmode);
++extern pthread_key(long, THR_SEN_select_limit);
++extern pthread_key(long, THR_SEN_offset_limit);
++extern pthread_key(long, THR_SEN_current_row);
++#endif
+ #endif /* ENABLE_SENNA */
+ 
+ /* search with boolean queries */
+@@ -112,6 +120,22 @@
+ #endif /* ENABLE_SENNA */
+ } FTB;
+ 
++#ifdef ENABLE_SENNA
++long * _get_current_row_num (void)
++{
++#ifdef THREAD
++  long *tmp = pthread_getspecific(THR_SEN_current_row);
++  if (!tmp) {
++    tmp = (long *) calloc(1, sizeof(long));
++    pthread_setspecific(THR_SEN_current_row, tmp);
++    *tmp = 0;
++  }
++  return tmp;
++#endif
++  return 0;
++}
++#endif /* ENABLE_SENNA */
++
+ static int FTB_WORD_cmp(my_off_t *v, FTB_WORD *a, FTB_WORD *b)
+ {
+   int i;
+@@ -336,6 +360,8 @@
+     sen_query *q;
+     sen_encoding e;
+     const char *rest;
++    long *current_row = _get_current_row_num();
++    if (current_row) { *current_row = 0; }
+     if (keynr==NO_SUCH_KEY ||
+         !(i = info->s->keyinfo[keynr].senna) ||
+         !(buf=(char *)my_malloc(query_len + 1, MYF(MY_WME)))) {
+@@ -515,9 +541,27 @@
+   {
+     my_off_t pos;
+     MI_INFO   *info=ftb->info;
++#ifdef THREAD
++    long *skipmode = pthread_getspecific(THR_SEN_skipmode);
++    long *current_row = _get_current_row_num();
++#endif
+     while (ftb->sir && sen_records_next(ftb->sir, &pos, sizeof(my_off_t), NULL)) {
+       info->update&= (HA_STATE_CHANGED | HA_STATE_ROW_CHANGED);
+       info->lastpos=pos;
++#ifdef THREAD
++      if (skipmode && *skipmode) {
++	long *select_limit, *offset_limit;
++	select_limit = pthread_getspecific(THR_SEN_select_limit);
++	offset_limit = pthread_getspecific(THR_SEN_offset_limit);
++	if (select_limit && offset_limit) {
++	  if (*offset_limit > *current_row || *select_limit <= *current_row) {
++	    (*current_row)++;
++	    return 0;
++	  }
++	}
++      }
++      if (current_row) { (*current_row)++; }
++#endif
+       if (!(my_thread_var->sen_flags & (8|2))) { return 0; }
+       if (!(*info->read_record)(info,info->lastpos,record)) {
+         info->update|= HA_STATE_AKTIV;          /* Record is read */
+diff -Nurd mysql-4.0.27.senna.2ind/mysys/my_thr_init.c mysql-4.0.27.senna.2ind.skipmode/mysys/my_thr_init.c
+--- mysql-4.0.27.senna.2ind/mysys/my_thr_init.c	2006-05-07 03:55:48.000000000 +0900
++++ mysql-4.0.27.senna.2ind.skipmode/mysys/my_thr_init.c	2006-08-17 09:27:58.000000000 +0900
+@@ -23,6 +23,12 @@
+ #include <m_string.h>
+ 
+ #ifdef THREAD
++#ifdef ENABLE_SENNA
++pthread_key(long, THR_SEN_skipmode);
++pthread_key(long, THR_SEN_select_limit);
++pthread_key(long, THR_SEN_offset_limit);
++pthread_key(long, THR_SEN_current_row);
++#endif /* ENABLE_SENNA */
+ #ifdef USE_TLS
+ pthread_key(struct st_my_thread_var*, THR_KEY_mysys);
+ #else
+@@ -55,6 +61,13 @@
+     1  error (Couldn't create THR_KEY_mysys)
+ */
+ 
++#ifdef ENABLE_SENNA
++void _pthread_key_create_sen_dest (void *p)
++{
++  free(p);
++}
++#endif /* ENABLE_SENNA */
++
+ my_bool my_thread_global_init(void)
+ {
+   if (pthread_key_create(&THR_KEY_mysys,0))
+@@ -62,6 +75,28 @@
+     fprintf(stderr,"Can't initialize threads: error %d\n",errno);
+     return 1;
+   }
++#ifdef ENABLE_SENNA
++  if (pthread_key_create(&THR_SEN_skipmode, _pthread_key_create_sen_dest))
++  { 
++    fprintf(stderr,"Can't initialize threads: error %d\n",errno);
++    return 1;
++  }
++  if (pthread_key_create(&THR_SEN_select_limit, _pthread_key_create_sen_dest))
++  {
++    fprintf(stderr,"Can't initialize threads: error %d\n",errno);
++    return 1;
++  }
++  if (pthread_key_create(&THR_SEN_offset_limit, _pthread_key_create_sen_dest))
++  {
++    fprintf(stderr,"Can't initialize threads: error %d\n",errno);
++    return 1;
++  }
++  if (pthread_key_create(&THR_SEN_current_row, _pthread_key_create_sen_dest))
++  {
++    fprintf(stderr,"Can't initialize threads: error %d\n",errno);
++    return 1;
++  }
++#endif /* ENABLE_SENNA */
+ #ifdef PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
+   pthread_mutexattr_init(&my_fast_mutexattr);
+   pthread_mutexattr_setkind_np(&my_fast_mutexattr,PTHREAD_MUTEX_ADAPTIVE_NP);
+@@ -102,6 +137,12 @@
+ void my_thread_global_end(void)
+ {
+   pthread_key_delete(THR_KEY_mysys);
++#ifdef ENABLE_SENNA
++  pthread_key_delete(THR_SEN_skipmode);
++  pthread_key_delete(THR_SEN_select_limit);
++  pthread_key_delete(THR_SEN_offset_limit);
++  pthread_key_delete(THR_SEN_current_row);
++#endif /* ENABLE_SENNA */
+ #ifdef PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
+   pthread_mutexattr_destroy(&my_fast_mutexattr);
+ #endif
+@@ -219,6 +260,25 @@
+ #if (!defined(__WIN__) && !defined(OS2)) || defined(USE_TLS)
+   pthread_setspecific(THR_KEY_mysys,0);
+ #endif
++  {
++    void *skipvars;
++    if ((skipvars = pthread_getspecific(THR_SEN_skipmode))) {
++      free(skipvars);
++      pthread_setspecific(THR_SEN_skipmode,0);
++    }
++    if ((skipvars = pthread_getspecific(THR_SEN_offset_limit))) {
++      free(skipvars);
++      pthread_setspecific(THR_SEN_offset_limit,0);
++    }
++    if ((skipvars = pthread_getspecific(THR_SEN_select_limit))) {
++      free(skipvars);
++      pthread_setspecific(THR_SEN_select_limit,0);
++    }
++    if ((skipvars = pthread_getspecific(THR_SEN_current_row))) {
++      free(skipvars);
++      pthread_setspecific(THR_SEN_current_row,0);
++    }
++  }
+ }
+ 
+ struct st_my_thread_var *_my_thread_var(void)
+diff -Nurd mysql-4.0.27.senna.2ind/sql/item_create.cc mysql-4.0.27.senna.2ind.skipmode/sql/item_create.cc
+--- mysql-4.0.27.senna.2ind/sql/item_create.cc	2006-05-07 03:55:47.000000000 +0900
++++ mysql-4.0.27.senna.2ind.skipmode/sql/item_create.cc	2006-08-17 09:27:58.000000000 +0900
+@@ -456,3 +456,10 @@
+ {
+   return new Item_func_quote(a);
+ }
++
++#ifdef ENABLE_SENNA
++Item *create_func_sen_skipmode_set(Item* a)
++{
++  return new Item_func_sen_skipmode_set(a);
++}
++#endif /* ENABLE_SENNA */
+diff -Nurd mysql-4.0.27.senna.2ind/sql/item_create.h mysql-4.0.27.senna.2ind.skipmode/sql/item_create.h
+--- mysql-4.0.27.senna.2ind/sql/item_create.h	2006-05-07 03:55:47.000000000 +0900
++++ mysql-4.0.27.senna.2ind.skipmode/sql/item_create.h	2006-08-17 09:27:58.000000000 +0900
+@@ -95,3 +95,6 @@
+ Item *create_load_file(Item* a);
+ Item *create_func_is_free_lock(Item* a);
+ Item *create_func_quote(Item* a);
++#ifdef ENABLE_SENNA
++Item *create_func_sen_skipmode_set(Item* a);
++#endif /* ENABLE_SENNA */
+diff -Nurd mysql-4.0.27.senna.2ind/sql/item_func.cc mysql-4.0.27.senna.2ind.skipmode/sql/item_func.cc
+--- mysql-4.0.27.senna.2ind/sql/item_func.cc	2006-08-17 09:19:48.000000000 +0900
++++ mysql-4.0.27.senna.2ind.skipmode/sql/item_func.cc	2006-08-17 09:27:58.000000000 +0900
+@@ -2488,3 +2488,24 @@
+     return 1;
+   return 0;
+ }
++
++#ifdef ENABLE_SENNA
++#include <pthread.h>
++extern "C" { 
++extern pthread_key_t THR_SEN_skipmode; 
++}
++longlong Item_func_sen_skipmode_set::val_int()
++{
++  longlong arg1= (longlong) args[0]->val_int();
++  long *skipmode;
++#ifdef THREAD
++  skipmode = (long *) pthread_getspecific(THR_SEN_skipmode);
++  if (!skipmode) {
++    skipmode = (long *) calloc(1, sizeof(long));
++    pthread_setspecific(THR_SEN_skipmode, skipmode);
++  }
++  *skipmode = arg1;
++#endif
++  return (longlong) arg1;
++}
++#endif /* ENABLE_SENNA */
+diff -Nurd mysql-4.0.27.senna.2ind/sql/item_func.h mysql-4.0.27.senna.2ind.skipmode/sql/item_func.h
+--- mysql-4.0.27.senna.2ind/sql/item_func.h	2006-08-17 09:19:48.000000000 +0900
++++ mysql-4.0.27.senna.2ind.skipmode/sql/item_func.h	2006-08-17 09:27:58.000000000 +0900
+@@ -1044,3 +1044,15 @@
+   void fix_length_and_dec() { decimals=0; max_length=1; maybe_null=1;}
+   unsigned int size_of() { return sizeof(*this);}  
+ };
++
++#ifdef ENABLE_SENNA
++class Item_func_sen_skipmode_set :public Item_int_func
++{
++  String value;
++public:
++  Item_func_sen_skipmode_set(Item *a) :Item_int_func(a) {}
++  longlong val_int();
++  const char *func_name() const { return "sen_skipmode_set"; }
++  unsigned int size_of() { return sizeof(*this);}
++};
++#endif /* ENABLE_SENNA */
+diff -Nurd mysql-4.0.27.senna.2ind/sql/lex.h mysql-4.0.27.senna.2ind.skipmode/sql/lex.h
+--- mysql-4.0.27.senna.2ind/sql/lex.h	2006-08-17 09:19:42.000000000 +0900
++++ mysql-4.0.27.senna.2ind.skipmode/sql/lex.h	2006-08-17 09:27:58.000000000 +0900
+@@ -500,6 +500,9 @@
+   { "RPAD",		SYM(FUNC_ARG3),0,CREATE_FUNC(create_func_rpad)},
+   { "RTRIM",		SYM(FUNC_ARG1),0,CREATE_FUNC(create_func_rtrim)},
+   { "SEC_TO_TIME",	SYM(FUNC_ARG1),0,CREATE_FUNC(create_func_sec_to_time)},
++#ifdef ENABLE_SENNA
++  { "SEN_SKIPMODE_SET", SYM(FUNC_ARG1),0,CREATE_FUNC(create_func_sen_skipmode_set)},
++#endif /* ENABLE_SENNA */
+   { "SESSION_USER",	SYM(USER),0,0},
+   { "SUBDATE",		SYM(DATE_SUB_INTERVAL),0,0},
+   { "SIGN",		SYM(FUNC_ARG1),0,CREATE_FUNC(create_func_sign)},
+diff -Nurd mysql-4.0.27.senna.2ind/sql/sql_select.cc mysql-4.0.27.senna.2ind.skipmode/sql/sql_select.cc
+--- mysql-4.0.27.senna.2ind/sql/sql_select.cc	2006-08-17 09:22:43.000000000 +0900
++++ mysql-4.0.27.senna.2ind.skipmode/sql/sql_select.cc	2006-08-17 09:27:58.000000000 +0900
+@@ -195,6 +195,16 @@
+   return res;
+ }
+ 
++#ifdef ENABLE_SENNA
++#include <pthread.h>
++extern "C" { 
++//#include <my_pthread.h>
++//extern pthread_key(long, THR_SEN_select_limit);
++//extern pthread_key(long, THR_SEN_offset_limit);
++extern pthread_key_t THR_SEN_select_limit;
++extern pthread_key_t THR_SEN_offset_limit;
++}
++#endif /* ENABLE_SENNA */
+ 
+ /*****************************************************************************
+   Check fields, find best join, do the select and output fields.
+@@ -252,6 +262,25 @@
+   thd->used_tables=0;				// Updated by setup_fields
+   /* select_limit is used to decide if we are likely to scan the whole table */
+   select_limit= thd->select_limit;
++#ifdef ENABLE_SENNA
++#ifdef THREAD
++{
++  long *tmp = (long *) pthread_getspecific(THR_SEN_offset_limit);
++  if (!tmp) {
++    tmp = (long *) calloc(1, sizeof(long));
++    pthread_setspecific(THR_SEN_offset_limit, tmp);
++  }
++  *tmp = thd->offset_limit;
++
++  tmp = (long *) pthread_getspecific(THR_SEN_select_limit);
++  if (!tmp) {
++    tmp = (long *) calloc(1, sizeof(long));
++    pthread_setspecific(THR_SEN_select_limit, tmp);
++  }
++  *tmp = thd->select_limit;
++}
++#endif
++#endif /* ENABLE_SENNA */
+   if (having || (select_options & OPTION_FOUND_ROWS))
+     select_limit= HA_POS_ERROR;
+ 
