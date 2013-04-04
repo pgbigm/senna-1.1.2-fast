@@ -2658,7 +2658,7 @@ sen_info(char **version,
          unsigned int *partial_match_threshold)
 {
   if (version) {
-    *version = PACKAGE_VERSION " (last update: 2013.02.25)";
+    *version = PACKAGE_VERSION " (last update: 2013.04.05)";
   }
   if (configure_options) {
     *configure_options = CONFIGURE_OPTIONS;
