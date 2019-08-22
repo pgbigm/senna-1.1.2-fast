@@ -73,7 +73,7 @@ suffix_init(void)
   }
 }
 
-inline size_t
+static inline size_t
 sen_str_charlen_utf8(const unsigned char *str, const unsigned char *end)
 {
   /* MEMO: This function allows non-null-terminated string as str. */

@@ -3496,7 +3496,7 @@ mk_atom(sen_ctx *ctx, char *str, unsigned int len)
   }
 }
 
-inline sen_obj *
+static inline sen_obj *
 json_readstr(sen_ctx *ctx, jctx *jc)
 {
   char *start, *end;
@@ -3523,7 +3523,7 @@ json_readstr(sen_ctx *ctx, jctx *jc)
   }
 }
 
-inline sen_obj *
+static inline sen_obj *
 json_readstrexp(sen_ctx *ctx, jctx *jc)
 {
   sen_obj *res;
