@@ -1,0 +1,27 @@
+language: c
+
+compiler: gcc
+
+env:
+   matrix:
+      - PGBRANCH=master
+
+before_install:
+   - CURDIR=$(pwd)
+
+before_script:
+   - mkdir opt
+   - SENNA_INS=${CURDIR}/opt/senna-1.1.2-fast
+   - SENNA_CFG=${SENNA_INS}/bin/senna-cfg
+
+script:
+   - ./configure --prefix=${SENNA_INS} --without-mecab
+   - make install
+
+after_script:
+   - if [ -f regression.diffs ]; then cat regression.diffs; fi
+
+notifications:
+   email:
+      on_success: change
+      on_failure: always
